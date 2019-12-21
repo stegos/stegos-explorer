@@ -1,0 +1,9 @@
+# Cargo build, and backup files
+/target
+**/*.rs.bk
+
+# database filder
+/data
+
+# local eniroment
+.env.local

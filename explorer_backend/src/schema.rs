@@ -53,8 +53,20 @@ table! {
     }
 }
 
+table! {
+    outputs (output_hash) {
+        output_hash -> Text,
+        output_type -> Text,
+        committed_block_hash -> Text,
+        amount -> Nullable<Int8>,
+        recipient -> Nullable<Text>,
+        spent_in_block -> Nullable<Text>,
+    }
+}
+
 allow_tables_to_appear_in_same_query!(
     macro_blocks,
     micro_blocks,
     other_fields,
+    outputs,
 );

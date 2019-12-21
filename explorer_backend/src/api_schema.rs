@@ -1,5 +1,5 @@
 use crate::diesel::RunQueryDsl;
-use crate::schema::{macro_blocks, micro_blocks, other_fields};
+use crate::schema::{macro_blocks, micro_blocks, other_fields, outputs};
 use diesel::pg::PgConnection;
 use diesel::Connection;
 use diesel::QueryDsl;
@@ -10,13 +10,33 @@ use serde_json::Value;
 
 use std::env;
 
-type Hash = String;
-type Timestamp = String;
-type PublicKey = String;
-type VRF = Value;
-type Data = String;
-type Fr = String;
-type BitVec = String;
+pub type Hash = String;
+pub type Timestamp = String;
+pub type PublicKey = String;
+pub type VRF = Value;
+pub type Data = String;
+pub type Fr = String;
+pub type BitVec = String;
+
+#[derive(Deserialize)]
+pub struct Output {
+    pub r#type: String,
+    pub output_hash: Hash,
+    pub amount: Option<i64>,
+    pub recipient: PublicKey,
+}
+
+#[derive(Debug, Queryable, Insertable)]
+#[table_name = "outputs"]
+pub struct OutputInfo {
+    pub output_hash: Hash,
+    pub output_type: String,
+    pub committed_block_hash: String,
+    pub amount: Option<i64>,
+    pub recipient: PublicKey,
+    pub spent_in_block: Option<String>,
+}
+
 #[derive(Queryable, Insertable)]
 #[table_name = "other_fields"]
 pub struct OtherFields {

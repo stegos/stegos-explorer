@@ -25,6 +25,7 @@ use futures::compat::Future01CompatExt;
 use futures::stream::StreamExt;
 use futures_01::future::{ok, lazy};
 use futures::compat::Compat01As03;
+use diesel::result::Error as DBError;
 
 
 pub fn establish_connection() -> PgConnection {
@@ -38,6 +39,14 @@ struct ResponseWithRest<T> {
     response: T,
     #[serde(flatten)]
     other: Map<String, Value>,
+}
+
+#[derive(Deserialize)]
+struct MacroBlockWithInputs {
+    #[serde(flatten)]
+    block: api_schema::MacroBlock,
+    inputs: Vec<api_schema::Hash>,
+    outputs: Vec<api_schema::Output>
 }
 
 fn main(){
@@ -72,35 +81,63 @@ impl Service {
     }
 
     // TODO: convert hash without clone, and info without serialize. 
-    fn add_other(db: &PgConnection, hash: &String, info: Map<String, Value>) {
+    fn add_other(db: &PgConnection, hash: &String, info: Map<String, Value>)-> Result<(), DBError> {
         let fields = api_schema::OtherFields {
             block_hash: hash.clone(),
             fields: serde_json::to_value(&info).unwrap(),
         };
         let result = diesel::insert_into(schema::other_fields::table)
             .values(&fields)
-            .execute(db)
-            .expect("Error other fields");
-            assert_eq!(result, 1);
+            .execute(db)?;
+        assert_eq!(result, 1);
+        Ok(())
+    }
+    fn process_inputs(db: &PgConnection, block_hash: &api_schema::Hash, outputs: Vec<api_schema::Output>, inputs: Vec<api_schema::Hash>) -> Result<(), DBError> {
+
+        use diesel::dsl::any;
+        let outputs_len = outputs.len();
+        let outputs: Vec<api_schema::OutputInfo> = outputs.into_iter().map(|output| {
+            api_schema::OutputInfo {
+                output_hash: output.output_hash,
+                output_type: output.r#type,
+                committed_block_hash: block_hash.clone(),
+                amount: output.amount,
+                recipient: output.recipient,
+                spent_in_block: None,
+            }
+        }).collect();
+        let result = diesel::insert_into(schema::outputs::table)
+            .values(&outputs)
+            .execute(db)?;
+        assert_eq!(result, outputs_len);
+        
+        let target = schema::outputs::table.filter(schema::outputs::dsl::output_hash.eq(any(&inputs)));
+        diesel::update(target).set(schema::outputs::dsl::committed_block_hash.eq(block_hash))
+            .execute(db)?;
+        assert_eq!(result, outputs_len);
+
+        Ok(())
     }
 
     // TODO: remove double serialize/deserialize, by optimizing websocket layer. 
     fn on_response(db: &PgConnection, resp: Response) {
+
+        db.transaction::<_, DBError, _>(|| {
         let kind = resp.kind;
         match kind {
                 ResponseKind::ChainNotification(ChainNotification::MacroBlockCommitted(b))
              => {
                 info!("Processing macro block: epoch={}", b.block.header.epoch);
                 let json = serde_json::to_value(b).unwrap();
-                let block: ResponseWithRest<api_schema::MacroBlock> = serde_json::from_value(json).unwrap();
+                let block: ResponseWithRest<MacroBlockWithInputs> = serde_json::from_value(json).unwrap();
                 // TODO: check count of rows inserted.
                 let result = diesel::insert_into(schema::macro_blocks::table)
-                    .values(&block.response)
-                    .execute(db)
-                    .expect("Error saving new macro_block");
+                    .values(&block.response.block)
+                    .execute(db)?;
                 assert_eq!(result, 1);
-                let hash = block.response.block_hash;
-                Self::add_other(db, &hash, block.other);
+                let hash = block.response.block.block_hash;
+                Self::process_inputs(db, &hash, block.response.outputs, block.response.inputs)?;
+                Self::add_other(db, &hash, block.other)?;
             }
             ResponseKind::ChainNotification(ChainNotification::MicroBlockPrepared(b)) => {
                 info!("Processing micro block: epoch={}, offset={}", b.header.epoch,b.header.offset);
@@ -109,14 +146,16 @@ impl Service {
                 // TODO: check count of rows inserted.
                 let result = diesel::insert_into(schema::micro_blocks::table)
                     .values(&block.response)
-                    .execute(db)
-                    .expect("Error saving new micro_block");
+                    .execute(db)?;
                 assert_eq!(result, 1);
                 let hash = block.response.block_hash;
-                Self::add_other(db, &hash, block.other);
+                Self::add_other(db, &hash, block.other)?;
             }
+            ResponseKind::ChainNotification(ChainNotification::MicroBlockReverted(_b)) => {}, // silently revert block
             resp => info!("Not processed response {:?}", resp),
         }
+        Ok(())
+        }).unwrap();
     }
 
 // TODO:
@@ -134,20 +173,25 @@ impl Service {
 // Download rest of consensus messages:(prevote, precommit, viewchange),
 
 
-    fn resolve_epoch(db: &PgConnection, prefix: &str) -> Result<u64, failure::Error> {
+    fn resolve_epoch(db: &PgConnection, prefix: &str) -> Result<(u64, u32), failure::Error> {
+        use explorer_backend::num_micro_blocks;
 
         use crate::schema::macro_blocks::dsl::*;
         let blocks = macro_blocks
             .filter(network.eq(prefix))
             .order(epoch.desc())
             .limit(1)
-            .load::<MacroBlock>(db)
+            .select((
+                crate::schema::macro_blocks::all_columns,
+                num_micro_blocks(epoch + 1, network),
+            ))
+            .load::<(MacroBlock, i64)>(db)
             .expect("Error loading macro block");
 
         Ok(if blocks.is_empty() {
-            0
+            (0, 0)
         } else {
-            blocks[0].epoch as u64 + 1
+            (blocks[0].0.epoch as u64 + 1, blocks[0].1 as u32)
         })
     }
 
@@ -215,13 +259,13 @@ impl Service {
         stegos_crypto::set_network_prefix(prefix).unwrap();
         let db = self.db;
 
-        let epoch = Self::resolve_epoch(&db, prefix)?;
+        let (epoch, offset) = Self::resolve_epoch(&db, prefix)?;
 
-        info!("Creating new fetcher: epoch={}", epoch);
+        info!("Creating new fetcher: epoch={}, offset ={}", epoch, offset);
         let request = Request {
             kind: RequestKind::NodeRequest(NodeRequest::SubscribeChain {
                 epoch,
-                offset: 0,
+                offset,
             }),
             id: 0,
         };

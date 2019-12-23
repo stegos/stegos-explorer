@@ -1,0 +1,57 @@
+{
+  "name": "blockchain_explorer",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "serve": "vue-cli-service serve",
+    "build": "vue-cli-service build",
+    "lint": "vue-cli-service lint",
+    "do-deploy": "ts-node -P tsconfig.do-deploy.json ./deploy/digital-ocean.ts"
+  },
+  "dependencies": {
+    "@fortawesome/fontawesome-svg-core": "^1.2.26",
+    "@fortawesome/free-solid-svg-icons": "^5.12.0",
+    "@fortawesome/vue-fontawesome": "^0.1.9",
+    "browser-crypto": "^1.0.1",
+    "buefy": "^0.8.8",
+    "buffer": "^5.4.3",
+    "core-js": "^3.3.2",
+    "crypto-browserify": "3.11",
+    "graphql-request": "^1.8.2",
+    "humanize-duration": "^3.21.0",
+    "node-sass": "^4.13.0",
+    "sass-loader": "^8.0.0",
+    "vue": "^2.6.10",
+    "vue-class-component": "^7.0.2",
+    "vue-clipboard2": "^0.3.1",
+    "vue-native-websocket": "^2.0.13",
+    "vue-property-decorator": "^8.3.0",
+    "vue-router": "^3.1.3",
+    "vuex": "^3.1.2",
+    "vuex-class": "^0.3.2"
+  },
+  "devDependencies": {
+    "@vue/cli-plugin-babel": "^4.0.0",
+    "@vue/cli-plugin-eslint": "^4.0.0",
+    "@vue/cli-plugin-router": "^4.0.0",
+    "@vue/cli-plugin-typescript": "^4.0.0",
+    "@vue/cli-service": "^4.0.0",
+    "@vue/eslint-config-typescript": "^4.0.0",
+    "dots-wrapper": "^3.0.2",
+    "eslint": "^5.16.0",
+    "eslint-plugin-vue": "^5.0.0",
+    "lint-staged": "^9.4.2",
+    "ts-node": "^8.5.4",
+    "typescript": "^3.7.2",
+    "vue-template-compiler": "^2.6.10"
+  },
+  "gitHooks": {
+    "pre-commit": "lint-staged"
+  },
+  "lint-staged": {
+    "*.{js,vue,ts}": [
+      "vue-cli-service lint",
+      "git add"
+    ]
+  }
+}

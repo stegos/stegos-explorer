@@ -102,7 +102,7 @@ impl Service {
                 output_type: output.r#type,
                 committed_block_hash: block_hash.clone(),
                 amount: output.amount,
-                recipient: output.recipient,
+                recipient: Some(output.recipient),
                 spent_in_block: None,
             }
         }).collect();
@@ -112,9 +112,9 @@ impl Service {
         assert_eq!(result, outputs_len);
         
         let target = schema::outputs::table.filter(schema::outputs::dsl::output_hash.eq(any(&inputs)));
-        diesel::update(target).set(schema::outputs::dsl::committed_block_hash.eq(block_hash))
+        let result = diesel::update(target).set(schema::outputs::dsl::spent_in_block.eq(block_hash))
             .execute(db)?;
-        assert_eq!(result, outputs_len);
+        assert_eq!(result, inputs.len());
 
         Ok(())
     }

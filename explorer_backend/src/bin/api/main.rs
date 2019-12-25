@@ -6,7 +6,7 @@ use explorer_backend::api_schema;
 
 use juniper;
 
-use actix_web::{middleware, web,http, App, Error, HttpResponse, HttpServer};
+use actix_web::{middleware, web, http::header, App, Error, HttpResponse, HttpServer};
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
 use actix_cors::Cors;
@@ -47,6 +47,9 @@ async fn main() -> io::Result<()> {
         App::new()        .wrap(
             Cors::new() // <- Construct CORS middleware builder
               .allowed_methods(vec!["GET", "POST"])
+              .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
+              .allowed_header(header::CONTENT_TYPE)
+                .supports_credentials()
               .max_age(3600)
               .finish())
             .data(schema.clone())

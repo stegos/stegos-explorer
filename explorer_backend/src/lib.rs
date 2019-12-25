@@ -8,4 +8,9 @@ mod test;
 use diesel::sql_types::*;
 
 sql_function!(fn num_micro_blocks(x: Int8, y: Text ) -> Int8);
-// joinable!(micro_blocks -> macro_blocks (epoch, network));
+
+// sql_function! {
+//     #[sql_name = "ARRAY_AGG"]
+//     fn pg_array<T>(expr: T) -> Array<T>;
+
+// }

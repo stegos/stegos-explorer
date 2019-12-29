@@ -7,7 +7,6 @@ import VueClipboard from "vue-clipboard2";
 
 import App from "./App.vue";
 import router from "./router";
-import my_crypto from "./crypto";
 
 import store from "./store";
 

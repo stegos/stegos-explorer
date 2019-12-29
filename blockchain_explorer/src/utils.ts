@@ -104,6 +104,12 @@ export function format_hash(hash: string): ValueFormat {
     copyable: true
   };
 }
+export function format_hash_small(hash: string): ValueFormat {
+  return {
+    text: hash.slice(undefined, 10) + "...",
+    copyable: true
+  };
+}
 
 export function format_gamma(hash: string): ValueFormat {
   return {

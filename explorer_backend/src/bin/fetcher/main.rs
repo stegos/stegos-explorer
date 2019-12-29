@@ -54,7 +54,8 @@ struct MacroBlockWithInputs {
     #[serde(flatten)]
     block: api_schema::MacroBlock,
     inputs: Vec<api_schema::Hash>,
-    outputs: Vec<api_schema::Output>
+    outputs: Vec<api_schema::Output>,
+    awards: api_schema::Awards,
 }
 
 fn main(){
@@ -101,6 +102,29 @@ impl Service {
         Ok(())
     }
 
+    fn process_awards(db: &PgConnection, block_timestamp: String, epoch: i64, award: api_schema::Awards) -> Result<(), DBError> {
+        let payout = if let Some(payout) = award.payout {
+            payout
+        }
+        else {
+            return Ok(())
+        };
+
+        let award = api_schema::AwardsInfo {
+            network: api_schema::network_prefix().to_string(),
+            validator: payout.recipient,
+            
+            budget: payout.amount,
+            epoch,
+            block_timestamp,
+        };
+
+        diesel::insert_into(schema::awards::table)
+            .values(&award)
+            .execute(db)?;
+
+        return Ok(())
+    }
     // This method is executed only if processing of macroblock succed.
     fn process_txs(db: &PgConnection, block_hash: &api_schema::Hash, transactions: Vec<api_schema::Transaction>) -> Result<(), DBError> {
         use diesel::pg::upsert::excluded;
@@ -201,6 +225,7 @@ impl Service {
                 info!("Processing macro block: epoch={}", b.block.header.epoch);
                 let json = serde_json::to_value(b).unwrap();
                 let block: ResponseWithRest<MacroBlockWithInputs> = serde_json::from_value(json).unwrap();
+                let epoch = block.response.block.epoch;
                 // TODO: check count of rows inserted.
                 let result = diesel::insert_into(schema::macro_blocks::table)
                     .values(&block.response.block)
@@ -208,6 +233,7 @@ impl Service {
                 assert_eq!(result, 1);
                 let hash = block.response.block.block_hash;
                 Self::process_inputs(db, &hash, block.response.outputs, block.response.inputs)?;
+                Self::process_awards(db, block.response.block.block_timestamp, epoch, block.response.awards)?;
                 Self::add_other(db, &hash, block.other)?;
             }
             ResponseKind::ChainNotification(ChainNotification::MicroBlockPrepared(b)) => {

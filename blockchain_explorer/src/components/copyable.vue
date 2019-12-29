@@ -1,7 +1,7 @@
 <template>
   <a @click="copy(text, title)">
     {{ shrinked }}
-    <b-icon pack="fas" icon="copy" size="is-small"></b-icon>
+    <b-icon icon="content-copy" size="is-small"></b-icon>
   </a>
 </template>
 

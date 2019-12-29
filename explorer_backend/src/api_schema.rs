@@ -1,5 +1,5 @@
 use crate::diesel::RunQueryDsl;
-use crate::schema::{macro_blocks, micro_blocks, other_fields, outputs, transactions};
+use crate::schema::{awards, macro_blocks, micro_blocks, other_fields, outputs, transactions};
 use diesel::pg::PgConnection;
 use diesel::Connection;
 use diesel::QueryDsl;
@@ -21,6 +21,33 @@ pub type VRF = Value;
 pub type Data = String;
 pub type Fr = String;
 pub type BitVec = String;
+
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize)]
+pub struct Payout {
+    pub recipient: PublicKey,
+    pub amount: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize)]
+pub struct Awards {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payout: Option<Payout>,
+}
+
+#[derive(Deserialize, Debug, Queryable, Insertable)]
+#[table_name = "awards"]
+pub struct AwardsInfo {
+    pub network: String,
+    pub validator: PublicKey,
+    pub epoch: i64,
+    pub budget: i64,
+    pub block_timestamp: String,
+}
+#[derive(Debug, Queryable)]
+pub struct FullAwards {
+    pub award: AwardsInfo,
+    pub spent_in_block: Option<String>,
+}
 
 #[derive(Deserialize)]
 pub struct Transaction {
@@ -110,12 +137,12 @@ pub struct MacroBlock {
     pub canaries_range_hash: Hash,
 }
 #[cfg(not(feature = "fetcher"))]
-fn network_prefix() -> String {
+pub fn network_prefix() -> String {
     panic!()
 }
 
 #[cfg(feature = "fetcher")]
-fn network_prefix() -> String {
+pub fn network_prefix() -> String {
     stegos_crypto::get_network_prefix().to_string()
 }
 
@@ -207,8 +234,8 @@ impl MacroBlockInfo {
     pub fn canaries_range_hash(&self) -> &Hash {
         &self.block.canaries_range_hash
     }
-    pub fn num_micro_blocks(&self) -> f64 {
-        self.num_micro_blocks as f64
+    pub fn num_transactions(&self) -> f64 {
+        self.num_transactions as f64
     }
 }
 
@@ -318,6 +345,28 @@ impl TransactionInfo {
     }
 }
 
+#[juniper::object(description = "A Awards - is information about blockchain lotery.")]
+impl FullAwards {
+    pub fn network(&self) -> &String {
+        &self.award.network
+    }
+    pub fn validator(&self) -> &PublicKey {
+        &self.award.validator
+    }
+    pub fn epoch(&self) -> f64 {
+        self.award.epoch as f64
+    }
+    pub fn budget(&self) -> f64 {
+        self.award.budget as f64
+    }
+    pub fn spent_in_block(&self) -> &Option<String> {
+        &self.spent_in_block
+    }
+    pub fn timestamp(&self) -> &String {
+        &self.award.block_timestamp
+    }
+}
+
 #[juniper::object(description = "A MicroBlock - it is a element of epoch representation.")]
 impl FullMicroBlock {
     pub fn block(&self) -> &MicroBlock {
@@ -345,7 +394,7 @@ pub struct FullMicroBlock {
 
 pub struct MacroBlockInfo {
     block: MacroBlock,
-    num_micro_blocks: i64,
+    num_transactions: i64,
 }
 
 pub struct FullMacroBlock {
@@ -446,14 +495,14 @@ impl QueryRoot {
                 .filter(network.eq(&network_name).and(epoch.eq(block_epoch)))
                 .select((
                     crate::schema::macro_blocks::all_columns,
-                    crate::num_micro_blocks(epoch, network),
+                    crate::num_transactions(epoch, network),
                 ))
                 .load::<(MacroBlock, i64)>(&connection)
                 .expect("Error loading members")
                 .into_iter()
-                .map(|(block, num_micro_blocks)| MacroBlockInfo {
+                .map(|(block, num_transactions)| MacroBlockInfo {
                     block,
-                    num_micro_blocks,
+                    num_transactions,
                 })
                 .collect()
         };
@@ -486,7 +535,7 @@ impl QueryRoot {
                 .filter(network.eq(&network_name).and(epoch.eq(blocks_epoch)))
                 .order(block_offset.desc())
                 .load::<MicroBlock>(&connection)
-                .expect("Error loading members")
+                .expect("Error loading micro blocks")
         }
     }
 
@@ -511,14 +560,14 @@ impl QueryRoot {
             .limit(limit as i64)
             .select((
                 crate::schema::macro_blocks::all_columns,
-                crate::num_micro_blocks(epoch, network),
+                crate::num_transactions(epoch, network),
             ))
             .load::<(MacroBlock, i64)>(&connection)
-            .expect("Error loading members")
+            .expect("Error loading blocks list")
             .into_iter()
-            .map(|(block, num_micro_blocks)| MacroBlockInfo {
+            .map(|(block, num_transactions)| MacroBlockInfo {
                 block,
-                num_micro_blocks,
+                num_transactions,
             })
             .collect()
     }
@@ -533,13 +582,42 @@ impl QueryRoot {
             .order(epoch.desc())
             .limit(1)
             .load::<MacroBlock>(&connection)
-            .expect("Error loading macro block");
+            .expect("Error loading epoch info");
         if blocks.is_empty() {
             0.
         } else {
             blocks[0].epoch as f64
         }
     }
+
+    fn awards(network: String, start_epoch: i32, mut limit: i32) -> Vec<FullAwards> {
+        let network_name = network;
+        use crate::diesel::BoolExpressionMethods;
+        use crate::diesel::ExpressionMethods;
+        use crate::schema::awards::dsl::*;
+        if limit > MAX_LIMIT {
+            limit = MAX_LIMIT;
+        }
+        let connection = establish_connection();
+
+        awards
+            .filter(epoch.le(start_epoch as i64).and(network.eq(&network_name)))
+            .order_by(epoch.desc())
+            .limit(limit as i64)
+            .select((
+                crate::schema::awards::all_columns,
+                crate::is_spent_awards(budget, validator),
+            ))
+            .load::<(AwardsInfo, Option<String>)>(&connection)
+            .expect("Error loading awards")
+            .into_iter()
+            .map(|(award, spent_in_block)| FullAwards {
+                award,
+                spent_in_block,
+            })
+            .collect()
+    }
+
     //TODO:
     // 1. Awards info
     // 2. Stakers group

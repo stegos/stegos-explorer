@@ -6,6 +6,7 @@
       :data="escrow"
       :columns="columns"
       show-detail-icon
+      :paginated="paginated"
       hoverable
       striped
       per-page="10"
@@ -22,7 +23,7 @@ import { Component, Prop, Vue } from "vue-property-decorator";
 import { ToastProgrammatic as Toast } from "buefy";
 import Copyable from "@/components/copyable.vue";
 
-class EscrowEntry {
+interface EscrowEntry {
   validator: string;
   current_stake: number;
   last_day_blocks: number;
@@ -38,6 +39,8 @@ class EscrowEntry {
 
 // Information about awards history.
 export default class Escrow extends Vue {
+  @Prop()
+  private paginated!: boolean;
   // @Prop()
   private escrow: Array<EscrowEntry> = [
     {
@@ -71,7 +74,7 @@ export default class Escrow extends Vue {
     },
     {
       field: "last_day_blocks",
-      label: "Blocks mined last dat"
+      label: "Blocks mined last day"
     },
     {
       field: "stake_max",

@@ -1,10 +1,11 @@
 <template>
   <b-table
+    v-if="count_of_epochs"
     :data="data"
     :loading="loading"
     show-detail-icon
     hoverable
-    paginated
+    :paginated="paginated"
     backend-pagination
     detailed
     custom-detail-row
@@ -28,16 +29,22 @@
         <Copyable :text="props.row.hash" title="Block hash" :shrinked="props.row.hashShrinked" />
         <!-- </router-link> -->
       </b-table-column>
-      <b-table-column field="duration" label="Age" centered>{{ get_duration(props.row.timestamp) }}</b-table-column>
-      <b-table-column field="microblocks" label="Micrloblocks count" centered>
+      <b-table-column field="duration" label="Age" centered>
+        <b-tooltip
+          :label="props.row.timestamp"
+          type="is-dark"
+          animated
+        >{{ get_duration(props.row.timestamp) }}</b-tooltip>
+      </b-table-column>
+      <b-table-column field="transactions" label="Transactions count" centered>
         <span
           class="tag"
           :class="
-              props.row.numMicroBlocks > 0 ? 'is-success' : 'is-warning'
+              props.row.numTransactions > 0 ? 'is-success' : 'is-warning'
             "
         >
           {{
-          props.row.numMicroBlocks || "No microblocks found"
+          props.row.numTransactions || "No microblocks found"
           }}
         </span>
       </b-table-column>
@@ -47,7 +54,7 @@
       <!--  -->
     </template>
     <template slot="detail" slot-scope="props">
-      <template v-if="!props.row.numMicroBlocks">
+      <template v-if="!props.row.numTransactions">
         <tr class="detail">
           <td colspan="7">
             <b-notification :closable="false">
@@ -87,7 +94,13 @@
               <Copyable :text="item.hash" title="Block hash" :shrinked="item.hashShrinked" />
               <!-- </router-link> -->
             </td>
-            <td lass="has-text-centered">{{ get_duration(item.timestamp) }}</td>
+            <td class="has-text-centered">
+              <b-tooltip
+                :label="item.timestamp"
+                type="is-dark"
+                animated
+              >{{ get_duration(item.timestamp) }}</b-tooltip>
+            </td>
             <td class="has-text-centered">{{ item.transactionsLen }}</td>
             <td class="has-text-centered">{{ item.inputsLen }}</td>
             <td class="has-text-centered">{{ item.outputsLen }}</td>
@@ -99,12 +112,11 @@
 </template>
 
 <script lang="ts">
-import { Component, Prop, Vue } from "vue-property-decorator";
+import { Component, Prop, Watch, Vue } from "vue-property-decorator";
 
 import { get_duration, format_hash } from "@/utils";
 import Copyable from "@/components/copyable.vue";
 import { request } from "graphql-request";
-import { mapGetters } from "vuex";
 import { Getter } from "vuex-class";
 
 @Component({
@@ -118,15 +130,28 @@ export default class BlockList extends Vue {
   @Getter("network_name") network_name: any;
   @Getter("api_addr") api_addr: any;
 
+  @Prop()
+  private paginated!: boolean;
+
   private NUM_PER_PAGE: number = 30;
-  private count_of_epochs: number = 0;
+  @Prop()
+  private count_of_epochs!: number;
   private last_epoch: number = 0;
+
+  @Watch("count_of_epochs")
+  on_epoch_changed(value: number, oldValue: number) {
+    this.last_epoch = this.last_epoch || this.count_of_epochs;
+    this.request_blocks();
+  }
 
   get_duration(value: string) {
     return get_duration(value);
   }
 
   request_blocks() {
+    if (this.count_of_epochs == 0) {
+      return;
+    }
     let epoch = this.last_epoch;
     let query = `{
         blocks(network: "${this.network_name}", startEpoch: ${epoch}, limit: ${this.NUM_PER_PAGE})
@@ -134,7 +159,7 @@ export default class BlockList extends Vue {
           epoch,
           hash,
           timestamp,
-          numMicroBlocks,
+          numTransactions,
           inputsLen,
           outputsLen,
 
@@ -151,16 +176,6 @@ export default class BlockList extends Vue {
     });
   }
 
-  request_epochs_count() {
-    let query = `{
-        currentEpoch(network: "${this.network_name}")
-      }`;
-    request(this.api_addr, query).then(status => {
-      this.set_epoch_from_status(status.currentEpoch);
-      this.request_blocks();
-    });
-  }
-
   set_page(page: number) {
     this.last_epoch = this.count_of_epochs - (page - 1) * this.NUM_PER_PAGE;
     this.$router.push({
@@ -168,11 +183,6 @@ export default class BlockList extends Vue {
       params: { last_epoch: this.last_epoch }
     } as any);
     this.request_blocks();
-  }
-
-  set_epoch_from_status(epoch: number) {
-    this.count_of_epochs = epoch;
-    this.last_epoch = this.last_epoch || epoch;
   }
 
   index_by_epoch(epoch: number) {
@@ -190,6 +200,7 @@ export default class BlockList extends Vue {
           timestamp,
           inputsLen,
           outputsLen,
+          transactionsLen,
           offset,
         }
       }`;
@@ -210,7 +221,7 @@ export default class BlockList extends Vue {
   }
 
   created() {
-    this.request_epochs_count();
+    this.request_blocks();
   }
 }
 </script>

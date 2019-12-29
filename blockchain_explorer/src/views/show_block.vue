@@ -67,7 +67,13 @@
 // 1 add id of output.
 // 2 add microblocks processing.
 import Vue from "vue";
-import { MacroBlock, MicroBlock, block_fields, format_hash } from "@/utils";
+import {
+  MacroBlock,
+  MicroBlock,
+  block_fields,
+  format_hash,
+  format_hash_small
+} from "@/utils";
 import { mapGetters } from "vuex";
 
 import { request } from "graphql-request";
@@ -187,10 +193,10 @@ export default Vue.extend({
         }
 
         if (item.spentInBlock) {
-          let value = format_hash(item.spentInBlock);
+          let value = format_hash_small(item.spentInBlock);
           item.spentShrinked = value.text;
         }
-        if (item.outputType === "public_payments_output") {
+        if (item.outputType === "public_payment_output") {
           this.main.public_outputs.push(item);
         } else if (item.outputType === "stake_output") {
           this.main.stake_outputs.push(item);
@@ -210,7 +216,7 @@ export default Vue.extend({
         let query = `{
           macroBlock(network: "stt", epoch:${this.main.epoch},) {
             block {
-              numMicroBlocks,${fields}
+              numTransactions,${fields}
             }
             outputs {
               amount,

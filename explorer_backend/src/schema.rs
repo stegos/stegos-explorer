@@ -1,4 +1,14 @@
 table! {
+    awards (network, epoch) {
+        network -> Text,
+        validator -> Text,
+        epoch -> Int8,
+        budget -> Int8,
+        block_timestamp -> Text,
+    }
+}
+
+table! {
     macro_blocks (block_hash) {
         block_version -> Int8,
         network -> Text,
@@ -77,6 +87,7 @@ table! {
 }
 
 allow_tables_to_appear_in_same_query!(
+    awards,
     macro_blocks,
     micro_blocks,
     other_fields,

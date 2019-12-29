@@ -1,0 +1,6 @@
+[workspace]
+members = [ "explorer_backend" ]
+
+[profile.release]
+incremental = true
+debug = 2

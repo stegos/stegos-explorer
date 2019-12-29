@@ -115,8 +115,8 @@ import { Getter } from "vuex-class";
 export default class BlockList extends Vue {
   private data: Array<any> = [];
   private loading: boolean = true;
-  @Getter("network_name") network_name;
-  @Getter("api_addr") api_addr;
+  @Getter("network_name") network_name: any;
+  @Getter("api_addr") api_addr: any;
 
   private NUM_PER_PAGE: number = 30;
   private count_of_epochs: number = 0;
@@ -142,7 +142,7 @@ export default class BlockList extends Vue {
       }`;
 
     request(this.api_addr, query).then(block_list => {
-      block_list.blocks.forEach(element => {
+      block_list.blocks.forEach((element: any) => {
         let data = format_hash(element.hash);
         element.hashShrinked = data.text;
       });
@@ -196,7 +196,7 @@ export default class BlockList extends Vue {
 
     request(this.api_addr, query).then(block_list => {
       row.micro_blocks = block_list.microBlocks;
-      row.micro_blocks.forEach(element => {
+      row.micro_blocks.forEach((element: any) => {
         let data = format_hash(element.hash);
         element.hashShrinked = data.text;
       });

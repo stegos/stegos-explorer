@@ -27,9 +27,11 @@
         </b-field>
       </template>
     </b-navbar>
-    <div class="container">
-      <router-view />
-    </div>
+    <section class="section">
+      <div class="container">
+        <router-view />
+      </div>
+    </section>
     <footer class="footer">
       <div class="content has-text-centered">
         <p>

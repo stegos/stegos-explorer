@@ -131,6 +131,7 @@ export default Vue.extend({
     ...mapGetters(["network_name", "api_addr"]),
 
     on_request(type: string, obj: any): void {
+      console.log(type, obj);
       // save block for future usage.
       let outputs = [];
       if (obj.outputs !== undefined) {
@@ -224,10 +225,17 @@ export default Vue.extend({
           this.on_request("macro", data.macroBlock)
         );
       } else {
+        let fields = Object.keys(new MicroBlock()).reduce(
+          (acc, x) => acc.concat(x + ", "),
+          ""
+        );
+        //TODO:: add transactions list
         let query = `{
-        type: "micro_block_info",
-        epoch: this.epoch,
-        offset: this.offset
+        microBlock(network: "stt", epoch:${this.main.epoch},offset:${this.main.offset}) {
+            block {
+              ${fields}
+            }
+          }
       }`;
 
         request(this.api_addr(), query).then(data =>

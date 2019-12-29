@@ -3,7 +3,7 @@ import VueRouter from "vue-router";
 import Search from "../views/search.vue";
 import About2 from "../views/About2.vue";
 import Block from "../views/show_block.vue";
-import BlockList from "../views/block_list.vue";
+import MainPage from "../views/main_page.vue";
 
 Vue.use(VueRouter);
 
@@ -11,7 +11,7 @@ const routes = [
   {
     path: "/:last_epoch?",
     name: "block_list",
-    component: BlockList
+    component: MainPage
   },
   {
     path: "/block/:epoch",

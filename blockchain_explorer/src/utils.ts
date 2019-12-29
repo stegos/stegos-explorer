@@ -38,11 +38,9 @@ export class MicroBlock {
   epoch: number;
   offset: number;
   pkey: string;
-  difficulty: number;
   timestamp: string;
-  blockReward: number;
-  gamma: string;
-  transactionLen: number;
+  transactionsLen: number;
+  viewChange: number;
   inputsLen: number;
   outputsLen: number;
   /// Constructor used to define order
@@ -50,14 +48,12 @@ export class MicroBlock {
     this.epoch = 0;
     this.offset = 0;
     this.hash = "No block found";
-    this.difficulty = 0;
-    this.blockReward = 0;
-    this.transactionLen = 0;
+    this.transactionsLen = 0;
     this.timestamp = "No block found";
+    this.viewChange = 0;
 
     this.version = 0;
     this.pkey = "No block found";
-    this.gamma = "No block found";
     this.inputsLen = 0;
     this.outputsLen = 0;
   }
@@ -91,7 +87,7 @@ export function block_fields(): any {
     blockReward: new FieldProperty("Block reward"),
     gamma: new FieldProperty("Gamma adjustment", format_gamma),
     validatorsLen: new FieldProperty("Count of validators"),
-    transactionLen: new FieldProperty("Count of transactions"),
+    transactionsLen: new FieldProperty("Count of transactions"),
     viewChange: new FieldProperty("Count of skiped leaders")
   };
 }

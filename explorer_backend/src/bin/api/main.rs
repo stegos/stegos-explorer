@@ -36,7 +36,6 @@ async fn graphql(
 
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
-    std::env::set_var("RUST_LOG", "actix_web=info");
     env_logger::init();
 
     // Create Juniper schema

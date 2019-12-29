@@ -3,7 +3,7 @@ use diesel::pg::PgConnection;
 use explorer_backend::api_schema;
 use explorer_backend::api_schema::MacroBlock;
 use explorer_backend::schema;
-use log::info;
+use log::{trace, info};
 use serde_json::Value;
 
 use std::collections::BTreeMap as Map;
@@ -39,6 +39,14 @@ struct ResponseWithRest<T> {
     response: T,
     #[serde(flatten)]
     other: Map<String, Value>,
+}
+
+
+#[derive(Deserialize)]
+struct MicroBlockWithTransaction {
+    #[serde(flatten)]
+    block: api_schema::MicroBlock,
+    transactions: Vec<api_schema::Transaction>,
 }
 
 #[derive(Deserialize)]
@@ -92,22 +100,85 @@ impl Service {
         assert_eq!(result, 1);
         Ok(())
     }
-    fn process_inputs(db: &PgConnection, block_hash: &api_schema::Hash, outputs: Vec<api_schema::Output>, inputs: Vec<api_schema::Hash>) -> Result<(), DBError> {
 
+    // This method is executed only if processing of macroblock succed.
+    fn process_txs(db: &PgConnection, block_hash: &api_schema::Hash, transactions: Vec<api_schema::Transaction>) -> Result<(), DBError> {
+        use diesel::pg::upsert::excluded;
+        use diesel::expression::operators::Concat;
+        use diesel::expression::AsExpression;
+        let mut txs = Vec::new();
+        let hash: &[api_schema::Hash] = &[block_hash.clone()];
+        // collect all fields
+        for tx in &transactions {
+            txs.push(api_schema::TransactionInfoRef {
+                tx_type: tx.r#type.as_str().into(),
+                outputs_hash: tx.txouts.iter().map(|o| o.output_hash.clone()).collect::<Vec<_>>().into(),
+                inputs_hash: tx.txins.as_slice().into(),
+                micro_block_hash: hash.into(),
+                fee: tx.fee.unwrap_or_else(||tx.block_fee.unwrap_or(0)),// Because transaction api is inconsistent, and fee can be = 0.
+                tx_hash: tx.tx_hash.clone(), // use sig in case of empty gamma.
+            });
+        }
+
+        // add transaction to database
+        let result = diesel::insert_into(schema::transactions::table)
+            .values(&txs)
+            .on_conflict(schema::transactions::dsl::tx_hash)
+            .do_update()
+            // use handwritten Concat because it only allowed to Text.
+            .set(schema::transactions::dsl::micro_block_hash.eq(Concat::new(schema::transactions::dsl::micro_block_hash, excluded(schema::transactions::dsl::micro_block_hash).as_expression())))
+            .execute(db)?;
+
+        assert_eq!(result, transactions.len());
+
+        // update outputs to be linked with tx
+        let mut outputs: Vec<api_schema::OutputInfo> = Vec::new();
+        for tx in transactions {
+            let tx_unique = tx.tx_hash.clone();
+            for output in tx.txouts {
+                let output_info =  api_schema::OutputInfo {
+                    output_hash: output.output_hash,
+                    output_type: output.r#type,
+                    committed_block_hash: None,
+                    amount: output.amount,
+                    recipient: Some(output.recipient),
+                    spent_in_block: None,
+                    spent_in_tx: vec![tx_unique.clone()],
+                };
+                outputs.push(output_info)
+            }
+        }
+ 
+        let result = diesel::insert_into(schema::outputs::table)
+            .values(&outputs)
+            .on_conflict(schema::outputs::dsl::output_hash)
+            .do_update()
+            .set(schema::outputs::dsl::spent_in_tx.eq(Concat::new(schema::outputs::dsl::spent_in_tx, excluded(schema::outputs::dsl::spent_in_tx)).as_expression()))
+            .execute(db)?;
+        assert_eq!(result, outputs.len());
+        Ok(())
+    }
+
+    fn process_inputs(db: &PgConnection, block_hash: &api_schema::Hash, outputs: Vec<api_schema::Output>, inputs: Vec<api_schema::Hash>) -> Result<(), DBError> {
+        trace!("Process macroblock outputs: inputs={:?}, outptus={:?}", inputs, outputs);
         use diesel::dsl::any;
         let outputs_len = outputs.len();
         let outputs: Vec<api_schema::OutputInfo> = outputs.into_iter().map(|output| {
             api_schema::OutputInfo {
                 output_hash: output.output_hash,
                 output_type: output.r#type,
-                committed_block_hash: block_hash.clone(),
+                committed_block_hash: block_hash.clone().into(),
                 amount: output.amount,
                 recipient: Some(output.recipient),
                 spent_in_block: None,
+                spent_in_tx: vec![],
             }
         }).collect();
         let result = diesel::insert_into(schema::outputs::table)
             .values(&outputs)
+            .on_conflict(schema::outputs::dsl::output_hash)
+            .do_update()
+            .set(schema::outputs::dsl::committed_block_hash.eq(block_hash))
             .execute(db)?;
         assert_eq!(result, outputs_len);
         
@@ -142,13 +213,14 @@ impl Service {
             ResponseKind::ChainNotification(ChainNotification::MicroBlockPrepared(b)) => {
                 info!("Processing micro block: epoch={}, offset={}", b.header.epoch,b.header.offset);
                 let json = serde_json::to_value(b).unwrap();
-                let block:  ResponseWithRest<api_schema::MicroBlock> = serde_json::from_value(json).unwrap();
+                let block: ResponseWithRest<MicroBlockWithTransaction> = serde_json::from_value(json).unwrap();
                 // TODO: check count of rows inserted.
                 let result = diesel::insert_into(schema::micro_blocks::table)
-                    .values(&block.response)
+                    .values(&block.response.block)
                     .execute(db)?;
                 assert_eq!(result, 1);
-                let hash = block.response.block_hash;
+                let hash = block.response.block.block_hash;
+                Self::process_txs(db, &hash, block.response.transactions)?;
                 Self::add_other(db, &hash, block.other)?;
             }
             ResponseKind::ChainNotification(ChainNotification::MicroBlockReverted(_b)) => {}, // silently revert block

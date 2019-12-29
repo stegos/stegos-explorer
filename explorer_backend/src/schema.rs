@@ -57,10 +57,22 @@ table! {
     outputs (output_hash) {
         output_hash -> Text,
         output_type -> Text,
-        committed_block_hash -> Text,
+        committed_block_hash -> Nullable<Text>,
         amount -> Nullable<Int8>,
         recipient -> Nullable<Text>,
         spent_in_block -> Nullable<Text>,
+        spent_in_tx -> Array<Text>,
+    }
+}
+
+table! {
+    transactions (tx_hash) {
+        tx_hash -> Text,
+        tx_type -> Text,
+        outputs_hash -> Array<Text>,
+        inputs_hash -> Array<Text>,
+        micro_block_hash -> Array<Text>,
+        fee -> Int8,
     }
 }
 
@@ -69,4 +81,5 @@ allow_tables_to_appear_in_same_query!(
     micro_blocks,
     other_fields,
     outputs,
+    transactions,
 );

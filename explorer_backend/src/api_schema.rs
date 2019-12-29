@@ -1,12 +1,14 @@
 use crate::diesel::RunQueryDsl;
-use crate::schema::{macro_blocks, micro_blocks, other_fields, outputs};
+use crate::schema::{macro_blocks, micro_blocks, other_fields, outputs, transactions};
 use diesel::pg::PgConnection;
 use diesel::Connection;
 use diesel::QueryDsl;
 use diesel::{Insertable, Queryable};
 use juniper::{EmptyMutation, RootNode};
+use log::*;
 use serde_derive::Deserialize;
 use serde_json::Value;
+use std::borrow::Cow;
 
 use std::env;
 
@@ -21,6 +23,38 @@ pub type Fr = String;
 pub type BitVec = String;
 
 #[derive(Deserialize)]
+pub struct Transaction {
+    pub fee: Option<i64>,
+    pub block_fee: Option<i64>, // fee name in coinbase
+    pub tx_hash: Hash,
+    pub r#type: Hash,
+    #[serde(default)]
+    pub txins: Vec<Hash>,
+    pub txouts: Vec<Output>,
+}
+
+#[derive(Debug, Insertable)]
+#[table_name = "transactions"]
+pub struct TransactionInfoRef<'a> {
+    pub tx_hash: Hash,
+    pub tx_type: Cow<'a, str>,
+    pub outputs_hash: Cow<'a, [Hash]>,
+    pub inputs_hash: Cow<'a, [Hash]>,
+    pub micro_block_hash: Cow<'a, [Hash]>,
+    pub fee: i64,
+}
+
+#[derive(Debug, Queryable)]
+pub struct TransactionInfo {
+    pub tx_hash: Hash,
+    pub tx_type: Hash,
+    pub outputs_hash: Vec<Hash>,
+    pub inputs_hash: Vec<Hash>,
+    pub micro_block_hash: Vec<Hash>,
+    pub fee: i64,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct Output {
     pub r#type: String,
     pub output_hash: Hash,
@@ -33,10 +67,11 @@ pub struct Output {
 pub struct OutputInfo {
     pub output_hash: Hash,
     pub output_type: String,
-    pub committed_block_hash: String,
+    pub committed_block_hash: Option<String>,
     pub amount: Option<i64>,
     pub recipient: Option<PublicKey>,
     pub spent_in_block: Option<String>,
+    pub spent_in_tx: Vec<Hash>,
 }
 
 #[derive(Queryable, Insertable)]
@@ -242,7 +277,7 @@ impl OutputInfo {
     pub fn output_type(&self) -> &String {
         &self.output_type
     }
-    pub fn committed_block_hash(&self) -> &String {
+    pub fn committed_block_hash(&self) -> &Option<String> {
         &self.committed_block_hash
     }
     pub fn amount(&self) -> Option<f64> {
@@ -256,6 +291,43 @@ impl OutputInfo {
     }
 }
 
+#[juniper::object(description = "A Transaction minimum representation of user transfer.")]
+impl TransactionInfo {
+    pub fn tx_hash(&self) -> &Hash {
+        &self.tx_hash
+    }
+
+    pub fn tx_type(&self) -> &Hash {
+        &self.tx_type
+    }
+
+    pub fn outputs_hash(&self) -> &Vec<Hash> {
+        &self.outputs_hash
+    }
+
+    pub fn inputs_hash(&self) -> &Vec<Hash> {
+        &self.inputs_hash
+    }
+
+    pub fn micro_block_hash(&self) -> &Vec<Hash> {
+        &self.micro_block_hash
+    }
+
+    pub fn fee(&self) -> f64 {
+        self.fee as f64
+    }
+}
+
+#[juniper::object(description = "A MicroBlock - it is a element of epoch representation.")]
+impl FullMicroBlock {
+    pub fn block(&self) -> &MicroBlock {
+        &self.block
+    }
+    pub fn transactions(&self) -> &Vec<TransactionInfo> {
+        &self.transactions
+    }
+}
+
 #[juniper::object(description = "A MacroBlock with information about outputs.")]
 impl FullMacroBlock {
     pub fn block(&self) -> &MacroBlockInfo {
@@ -264,6 +336,11 @@ impl FullMacroBlock {
     pub fn outputs(&self) -> &Vec<OutputInfo> {
         &self.outputs
     }
+}
+
+pub struct FullMicroBlock {
+    block: MicroBlock,
+    transactions: Vec<TransactionInfo>,
 }
 
 pub struct MacroBlockInfo {
@@ -310,45 +387,50 @@ pub struct QueryRoot;
 
 #[juniper::object]
 impl QueryRoot {
-    // fn micro_block(network: String, epoch: i32, offset: i32) -> i32 {
-    //     let network_name = network;
-    //     let block_epoch = epoch as i64;
-    //     let block_offset = offset;
+    fn micro_block(network: String, epoch: i32, offset: i32) -> Option<FullMicroBlock> {
+        let network_name = network;
+        let block_epoch = epoch as i64;
 
-    //     let connection = establish_connection();
-    //     let blocks = {
-    //         use crate::diesel::pg::Pg;
-    //         use crate::diesel::BoolExpressionMethods;
-    //         use crate::diesel::ExpressionMethods;
-    //         use crate::diesel::JoinOnDsl;
-    //         use crate::schema;
-    //         use crate::schema::micro_blocks::dsl::*;
-    //         micro_blocks
-    //             .filter(
-    //                 network
-    //                     .eq(&network_name)
-    //                     .and(epoch.eq(block_epoch))
-    //                     .and(offset.eq(block_offset)),
-    //             )
-    //             .load::<MicroBlock>(&connection)
-    //             .expect("Error loading members")
-    //     };
-    //     let blocks_hashes = blocks.iter().map(|b| b.block_hash).cloned().collect();
-    //     let block = blocks.swap_remove(0);
+        use crate::diesel::BoolExpressionMethods;
+        use crate::diesel::ExpressionMethods;
 
-    //     if let Some(block) = block {
-    //         let outputs = outputs
-    //             .filter(
-    //                 network
-    //                     .eq(&network_name)
-    //                     .and(epoch.eq(block_epoch))
-    //                     .and(offset.eq(block_offset)),
-    //             )
-    //             .order(block_offset.desc())
-    //             .load::<MicroBlock>(&connection)
-    //             .expect("Error loading members");
-    //     }
-    // }
+        let connection = establish_connection();
+        let mut blocks: Vec<_> = {
+            use crate::schema::micro_blocks::dsl::*;
+            micro_blocks
+                .filter(
+                    network
+                        .eq(&network_name)
+                        .and(epoch.eq(block_epoch))
+                        .and(block_offset.eq(&offset)),
+                )
+                .load::<MicroBlock>(&connection)
+                .expect("Error loading members")
+        };
+
+        if blocks.len() != 1 {
+            error!("Should request only one block, requested ={}", blocks.len());
+            return None;
+        }
+
+        let block = blocks.swap_remove(0);
+
+        let transactions = {
+            use crate::schema::transactions::dsl::*;
+            use diesel::dsl::sql;
+            transactions
+                .filter(sql(&format!(
+                    "micro_block_hash@>'{{ {} }}'", // select using GIN, all tx where block_hash if one of array micro_block_hash item
+                    &block.block_hash
+                )))
+                .load::<TransactionInfo>(&connection)
+                .expect("Error loading members")
+        };
+        Some(FullMicroBlock {
+            block,
+            transactions,
+        })
+    }
 
     fn macro_block(network: String, epoch: i32) -> Option<FullMacroBlock> {
         let network_name = network;

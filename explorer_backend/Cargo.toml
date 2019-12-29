@@ -14,9 +14,9 @@ serde = "1.0.103"
 serde_json = "1.0.44"
 serde_derive = "1.0.103"
 juniper = "0.14.1"
-stegos_api = {version = "1.0.0", git="https://github.com/stegos/stegos/", rev="ede041422b175fd5c52d5d3269d0984d030945bc", optional=true}
-stegos_node = {version = "1.0.0", git="https://github.com/stegos/stegos/", rev="ede041422b175fd5c52d5d3269d0984d030945bc", optional=true}
-stegos_crypto = {version = "1.0.0", git="https://github.com/stegos/stegos/", rev="ede041422b175fd5c52d5d3269d0984d030945bc", optional=true}
+stegos_api = {version = "1.0.0", git="https://github.com/stegos/stegos/", rev="79bd4263", optional=true}
+stegos_node = {version = "1.0.0", git="https://github.com/stegos/stegos/", rev="79bd4263", optional=true}
+stegos_crypto = {version = "1.0.0", git="https://github.com/stegos/stegos/", rev="79bd4263", optional=true}
 tokio = { version = "0.2.4", features = ["rt-core", "macros", "time"]}
 futures = {version="0.3", features = ["compat"] }
 failure="0.1"

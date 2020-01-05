@@ -439,88 +439,90 @@ impl QueryRoot {
     fn micro_block(network: String, epoch: i32, offset: i32) -> Option<FullMicroBlock> {
         let network_name = network;
         let block_epoch = epoch as i64;
+        {
+            use crate::diesel::BoolExpressionMethods;
+            use crate::diesel::ExpressionMethods;
 
-        use crate::diesel::BoolExpressionMethods;
-        use crate::diesel::ExpressionMethods;
+            let connection = establish_connection();
+            let mut blocks: Vec<_> = {
+                use crate::schema::micro_blocks::dsl::*;
+                micro_blocks
+                    .filter(
+                        network
+                            .eq(&network_name)
+                            .and(epoch.eq(block_epoch))
+                            .and(block_offset.eq(&offset)),
+                    )
+                    .load::<MicroBlock>(&connection)
+                    .expect("Error loading members")
+            };
 
-        let connection = establish_connection();
-        let mut blocks: Vec<_> = {
-            use crate::schema::micro_blocks::dsl::*;
-            micro_blocks
-                .filter(
-                    network
-                        .eq(&network_name)
-                        .and(epoch.eq(block_epoch))
-                        .and(block_offset.eq(&offset)),
-                )
-                .load::<MicroBlock>(&connection)
-                .expect("Error loading members")
-        };
+            if blocks.len() != 1 {
+                error!("Should request only one block, requested ={}", blocks.len());
+                return None;
+            }
 
-        if blocks.len() != 1 {
-            error!("Should request only one block, requested ={}", blocks.len());
-            return None;
+            let block = blocks.swap_remove(0);
+
+            let transactions = {
+                use crate::schema::transactions::dsl::*;
+                use diesel::dsl::sql;
+                transactions
+                    .filter(sql(&format!(
+                        "micro_block_hash@>'{{ {} }}'", // select using GIN, all tx where block_hash if one of array micro_block_hash item
+                        &block.block_hash
+                    )))
+                    .load::<TransactionInfo>(&connection)
+                    .expect("Error loading members")
+            };
+            Some(FullMicroBlock {
+                block,
+                transactions,
+            })
         }
-
-        let block = blocks.swap_remove(0);
-
-        let transactions = {
-            use crate::schema::transactions::dsl::*;
-            use diesel::dsl::sql;
-            transactions
-                .filter(sql(&format!(
-                    "micro_block_hash@>'{{ {} }}'", // select using GIN, all tx where block_hash if one of array micro_block_hash item
-                    &block.block_hash
-                )))
-                .load::<TransactionInfo>(&connection)
-                .expect("Error loading members")
-        };
-        Some(FullMicroBlock {
-            block,
-            transactions,
-        })
     }
 
     fn macro_block(network: String, epoch: i32) -> Option<FullMacroBlock> {
         let network_name = network;
         let block_epoch = epoch as i64;
+        {
+            use crate::diesel::BoolExpressionMethods;
+            use crate::diesel::ExpressionMethods;
 
-        use crate::diesel::BoolExpressionMethods;
-        use crate::diesel::ExpressionMethods;
+            let connection = establish_connection();
+            let mut blocks: Vec<_> = {
+                use crate::schema::macro_blocks::dsl::*;
+                macro_blocks
+                    .filter(network.eq(&network_name).and(epoch.eq(block_epoch)))
+                    .select((
+                        crate::schema::macro_blocks::all_columns,
+                        crate::num_transactions(epoch, network),
+                    ))
+                    .load::<(MacroBlock, i64)>(&connection)
+                    .expect("Error loading members")
+                    .into_iter()
+                    .map(|(block, num_transactions)| MacroBlockInfo {
+                        block,
+                        num_transactions,
+                    })
+                    .collect()
+            };
 
-        let connection = establish_connection();
-        let mut blocks: Vec<_> = {
-            use crate::schema::macro_blocks::dsl::*;
-            macro_blocks
-                .filter(network.eq(&network_name).and(epoch.eq(block_epoch)))
-                .select((
-                    crate::schema::macro_blocks::all_columns,
-                    crate::num_transactions(epoch, network),
-                ))
-                .load::<(MacroBlock, i64)>(&connection)
-                .expect("Error loading members")
-                .into_iter()
-                .map(|(block, num_transactions)| MacroBlockInfo {
-                    block,
-                    num_transactions,
-                })
-                .collect()
-        };
+            if blocks.len() != 1 {
+                return None;
+            }
 
-        if blocks.len() != 1 {
-            return None;
+            let block = blocks.swap_remove(0);
+
+            let outputs = {
+                use crate::schema::outputs::dsl::*;
+                outputs
+                    .filter(committed_block_hash.eq(&block.block.block_hash))
+                    .load::<OutputInfo>(&connection)
+                    .expect("Error loading members")
+            };
+            Some(FullMacroBlock { block, outputs })
         }
-
-        let block = blocks.swap_remove(0);
-
-        let outputs = {
-            use crate::schema::outputs::dsl::*;
-            outputs
-                .filter(committed_block_hash.eq(&block.block.block_hash))
-                .load::<OutputInfo>(&connection)
-                .expect("Error loading members")
-        };
-        Some(FullMacroBlock { block, outputs })
     }
 
     fn micro_blocks(network: String, epoch: i32) -> Vec<MicroBlock> {
@@ -547,75 +549,80 @@ impl QueryRoot {
     // - Add transaction count.
     fn blocks(network: String, start_epoch: i32, mut limit: i32) -> Vec<MacroBlockInfo> {
         let network_name = network;
-        use crate::diesel::BoolExpressionMethods;
-        use crate::diesel::ExpressionMethods;
-        use crate::schema::macro_blocks::dsl::*;
-        if limit > MAX_LIMIT {
-            limit = MAX_LIMIT;
+        {
+            use crate::diesel::BoolExpressionMethods;
+            use crate::diesel::ExpressionMethods;
+            use crate::schema::macro_blocks::dsl::*;
+            if limit > MAX_LIMIT {
+                limit = MAX_LIMIT;
+            }
+            let connection = establish_connection();
+            macro_blocks
+                .filter(epoch.le(start_epoch as i64).and(network.eq(&network_name)))
+                .order_by(epoch.desc())
+                .limit(limit as i64)
+                .select((
+                    crate::schema::macro_blocks::all_columns,
+                    crate::num_transactions(epoch, network),
+                ))
+                .load::<(MacroBlock, i64)>(&connection)
+                .expect("Error loading blocks list")
+                .into_iter()
+                .map(|(block, num_transactions)| MacroBlockInfo {
+                    block,
+                    num_transactions,
+                })
+                .collect()
         }
-        let connection = establish_connection();
-        macro_blocks
-            .filter(epoch.le(start_epoch as i64).and(network.eq(&network_name)))
-            .order_by(epoch.desc())
-            .limit(limit as i64)
-            .select((
-                crate::schema::macro_blocks::all_columns,
-                crate::num_transactions(epoch, network),
-            ))
-            .load::<(MacroBlock, i64)>(&connection)
-            .expect("Error loading blocks list")
-            .into_iter()
-            .map(|(block, num_transactions)| MacroBlockInfo {
-                block,
-                num_transactions,
-            })
-            .collect()
     }
 
     fn current_epoch(network: String) -> f64 {
         let network_name = network;
-        use crate::diesel::ExpressionMethods;
-        use crate::schema::macro_blocks::dsl::*;
-        let connection = establish_connection();
-        let blocks = macro_blocks
-            .filter(network.eq(network_name))
-            .order(epoch.desc())
-            .limit(1)
-            .load::<MacroBlock>(&connection)
-            .expect("Error loading epoch info");
-        if blocks.is_empty() {
-            0.
-        } else {
-            blocks[0].epoch as f64
+        {
+            use crate::diesel::ExpressionMethods;
+            use crate::schema::macro_blocks::dsl::*;
+            let connection = establish_connection();
+            let blocks = macro_blocks
+                .filter(network.eq(network_name))
+                .order(epoch.desc())
+                .limit(1)
+                .load::<MacroBlock>(&connection)
+                .expect("Error loading epoch info");
+            if blocks.is_empty() {
+                0.
+            } else {
+                blocks[0].epoch as f64
+            }
         }
     }
 
     fn awards(network: String, start_epoch: i32, mut limit: i32) -> Vec<FullAwards> {
         let network_name = network;
-        use crate::diesel::BoolExpressionMethods;
-        use crate::diesel::ExpressionMethods;
-        use crate::schema::awards::dsl::*;
-        if limit > MAX_LIMIT {
-            limit = MAX_LIMIT;
+        {
+            use crate::diesel::BoolExpressionMethods;
+            use crate::diesel::ExpressionMethods;
+            use crate::schema::awards::dsl::*;
+            if limit > MAX_LIMIT {
+                limit = MAX_LIMIT;
+            }
+            let connection = establish_connection();
+            awards
+                .filter(epoch.le(start_epoch as i64).and(network.eq(&network_name)))
+                .order_by(epoch.desc())
+                .limit(limit as i64)
+                .select((
+                    crate::schema::awards::all_columns,
+                    crate::is_spent_awards(budget, validator),
+                ))
+                .load::<(AwardsInfo, Option<String>)>(&connection)
+                .expect("Error loading awards")
+                .into_iter()
+                .map(|(award, spent_in_block)| FullAwards {
+                    award,
+                    spent_in_block,
+                })
+                .collect()
         }
-        let connection = establish_connection();
-
-        awards
-            .filter(epoch.le(start_epoch as i64).and(network.eq(&network_name)))
-            .order_by(epoch.desc())
-            .limit(limit as i64)
-            .select((
-                crate::schema::awards::all_columns,
-                crate::is_spent_awards(budget, validator),
-            ))
-            .load::<(AwardsInfo, Option<String>)>(&connection)
-            .expect("Error loading awards")
-            .into_iter()
-            .map(|(award, spent_in_block)| FullAwards {
-                award,
-                spent_in_block,
-            })
-            .collect()
     }
 
     //TODO:

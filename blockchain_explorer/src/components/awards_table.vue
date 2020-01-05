@@ -17,7 +17,9 @@
     >
       <template slot-scope="props">
         <b-table-column centered field="epoch" label="Epoch">
-          <router-link :to="'/block/' + props.row.epoch">{{props.row.epoch}}</router-link>
+          <router-link
+            :to="'/' + network_name_full + '/block/' + props.row.epoch"
+          >{{props.row.epoch}}</router-link>
         </b-table-column>
         <b-table-column field="validator" label="Validator">
           <Copyable
@@ -85,6 +87,7 @@ export default class Awards extends Vue {
   private last_epoch: number = 0;
   private loading: boolean = false;
   @Getter("network_name") network_name: any;
+  @Getter("network_name_full") network_name_full: any;
   @Getter("api_addr") api_addr: any;
 
   @Watch("count_of_epochs")

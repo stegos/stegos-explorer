@@ -1,5 +1,6 @@
 <template>
   <div>
+    <b-loading is-full-page :active="!count_of_epochs"></b-loading>
     <!-- <div class="columns is-gapless is-multiline is-mobile"> -->
     <div class="column">
       <Awards :count_of_epochs="count_of_epochs" :paginated="false" />

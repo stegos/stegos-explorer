@@ -3,7 +3,7 @@ use diesel::pg::PgConnection;
 use explorer_backend::api_schema;
 use explorer_backend::api_schema::MacroBlock;
 use explorer_backend::schema;
-use log::{trace, info};
+use log::{warn, trace, info};
 use serde_json::Value;
 
 use std::collections::BTreeMap as Map;
@@ -26,11 +26,25 @@ use futures::stream::StreamExt;
 use futures_01::future::{ok, lazy};
 use futures::compat::Compat01As03;
 use diesel::result::Error as DBError;
+use std::{thread::sleep, time::Duration};
 
-
+const NUM_RETRY:usize = 10;
 pub fn establish_connection() -> PgConnection {
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    PgConnection::establish(&database_url).expect(&format!("Error connecting to {}", database_url))
+    let mut retry = 0;
+    loop{
+        match PgConnection::establish(&database_url) {
+            Ok(pg) => return pg,
+            Err(e) if retry == NUM_RETRY => {
+                panic!("Error connecting to {}, e={}", database_url, e)
+            }
+            _ =>{}
+        }
+        warn!("Can't connect to postgres, will try to connect in 10 seconds, num of retry = {}", retry);
+        sleep(Duration::from_secs(10));
+        retry+=1;
+    }
+    
 }
 
 #[derive(Deserialize)]
@@ -61,13 +75,14 @@ struct MacroBlockWithInputs {
 fn main(){
     env_logger::try_init().unwrap();
     let uri = format!(
-        "{}:3145",
-        env::var("SERVICE_IP").expect("SERVICE_IP to be set")
+        "ws://{}",
+        env::var("STEGOS_ADDR").expect("STEGOS_ADDR to be set")
     );
     let db = establish_connection();
     let api_token =
         ApiToken::from_base64(&env::var("STEGOS_TOKEN").expect("STEGOS_TOKEN to be set")).unwrap();
 
+    info!("Trying to create websocket connection with uri={}", uri);
     let client = WebSocketClient::new(uri, api_token);
     let service = Service::new(client, db);
     tokio_compat::run_std(async{

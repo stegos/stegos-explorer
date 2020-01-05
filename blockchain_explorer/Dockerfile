@@ -5,16 +5,17 @@ WORKDIR /app/
 
 # Add entrypoint script to handle yarn cache
 RUN mkdir -p $YARN_CACHE_FOLDER
-COPY package*.json ./
+COPY package.json yarn.lock ./
+
+# install dependencies befure copy source, to prevent fetching on each build.
+RUN yarn install --frozen-lockfile
 
 ARG SERVICE_IP
-ARG STEGOS_TOKEN
-# ENV SERVICE_IP=$SERVICE_IP
-# ENV STEGOS_TOKEN=$STEGOS_TOKEN
+ENV SERVICE_IP=$SERVICE_IP
 COPY . .
-RUN yarn install
 RUN yarn build
 
+# Produce final image optimized for size.
 FROM nginx:stable-alpine as production-stage
 COPY --from=build-stage /app/dist /usr/share/nginx/html
 # keep /etc/nginx/nginx.conf with include statement for all /etc/nginx/conf.d/*.conf

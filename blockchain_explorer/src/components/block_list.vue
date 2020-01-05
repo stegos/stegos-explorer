@@ -21,10 +21,12 @@
   >
     <template slot-scope="props">
       <b-table-column field="epoch" label="Epoch">
-        <router-link :to="'/block/' + props.row.epoch">{{ props.row.epoch }}</router-link>
+        <router-link
+          :to=" '/' + network_name_full +  '/block/' + props.row.epoch"
+        >{{ props.row.epoch }}</router-link>
       </b-table-column>
       <b-table-column field="block_hash" label="Block hash (previous)">
-        <!-- <router-link :to="'/object/' + props.row.hash"> -->
+        <!-- <router-link :to="'/' + network_name_full + '/object/' + props.row.hash"> -->
 
         <Copyable :text="props.row.hash" title="Block hash" :shrinked="props.row.hashShrinked" />
         <!-- </router-link> -->
@@ -83,14 +85,16 @@
             <td></td>
             <td>
               &nbsp;&nbsp;&nbsp;&nbsp;
-              <router-link :to="'/block/' + item.epoch + '/' + item.offset">
+              <router-link
+                :to="'/' + network_name_full + '/block/' + item.epoch + '/' + item.offset"
+              >
                 {{
                 item.epoch + ":" + item.offset
                 }}
               </router-link>
             </td>
             <td>
-              <!-- <router-link :to="'/object/' + item.hash"> -->
+              <!-- <router-link :to="'/' + network_name_full + '/object/' + item.hash"> -->
               <Copyable :text="item.hash" title="Block hash" :shrinked="item.hashShrinked" />
               <!-- </router-link> -->
             </td>
@@ -128,6 +132,7 @@ export default class BlockList extends Vue {
   private data: Array<any> = [];
   private loading: boolean = true;
   @Getter("network_name") network_name: any;
+  @Getter("network_name_full") network_name_full: any;
   @Getter("api_addr") api_addr: any;
 
   @Prop()

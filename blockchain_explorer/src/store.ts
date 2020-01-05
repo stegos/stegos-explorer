@@ -6,7 +6,7 @@ Vue.use(Vuex);
 const store = new Vuex.Store({
   state: {
     network_name: "stt",
-    api_addr: "http://127.0.0.1:3000/graphql"
+    api_addr: process.env.VUE_APP_STEGOS_ADDR + "/graphql"
   },
   mutations: {
     set_mainnet(state) {
@@ -22,6 +22,15 @@ const store = new Vuex.Store({
   getters: {
     network_name: (state, getters) => {
       return state.network_name;
+    },
+    network_name_full: (state, getters) => {
+      if (state.network_name == "stg") {
+        return "mainnet";
+      } else if (state.network_name == "dev") {
+        return "devnet";
+      } else {
+        return "testnet";
+      }
     },
     api_addr: (state, getters) => {
       return state.api_addr;

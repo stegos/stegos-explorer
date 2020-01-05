@@ -14,7 +14,11 @@ use actix_cors::Cors;
 use crate::api_schema::{create_schema, Schema};
 
 async fn graphiql() -> HttpResponse {
-    let html = graphiql_source("http://127.0.0.1:3000/graphql");
+    let uri = format!(
+        "{}/graphql",
+        std::env::var("SERVICE_ADDR").expect("SERVICE_ADDR to be set")
+    );
+    let html = graphiql_source(&uri);
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
         .body(html)
@@ -56,7 +60,7 @@ async fn main() -> io::Result<()> {
             .service(web::resource("/graphql").route(web::post().to(graphql)))
             .service(web::resource("/graphiql").route(web::get().to(graphiql)))
     })
-    .bind("127.0.0.1:3000")?
-    .start()
-    .await
+    .bind("0.0.0.0:3000")?
+        .run()
+        .await
 }

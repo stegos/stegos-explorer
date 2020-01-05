@@ -100,34 +100,35 @@ export function get_duration(time: string): string {
 
 export function format_hash(hash: string): ValueFormat {
   return {
-    text: hash.slice(undefined, 32) + "...",
+    text: hash.slice(undefined, 16) + "...",
     copyable: true
   };
 }
+
 export function format_hash_small(hash: string): ValueFormat {
   return {
-    text: hash.slice(undefined, 10) + "...",
+    text: hash.slice(undefined, 16) + "...",
     copyable: true
   };
 }
 
 export function format_gamma(hash: string): ValueFormat {
   return {
-    text: hash.slice(undefined, 32) + "...",
+    text: hash.slice(undefined, 16) + "...",
     copyable: false
   };
 }
 
 export function format_pkey(hash: string): ValueFormat {
   return {
-    text: hash.slice(undefined, 32) + "...",
+    text: hash.slice(undefined, 19) + "...",
     copyable: true
   };
 }
 
 export function format_validator(hash: string): ValueFormat {
   return {
-    text: hash.slice(undefined, 32) + "...",
+    text: hash.slice(undefined, 16) + "...",
     copyable: true
   };
 }

@@ -108,6 +108,8 @@ export default class Awards extends Vue {
 
       request(this.api_addr, query).then(awards => {
         awards.awards.forEach((element: any) => {
+          element.budget /= 1000000;
+          
           let data = format_pkey(element.validator);
           element.validatorShrinked = data.text;
 

@@ -56,13 +56,13 @@
             <a href="https://stegos.com">Stegos</a> Blockchain Explorer
           </strong> by
           <a href="https://github.com/vldm">Vladimir Motylenko</a>.
-          <!-- The source
+          The source
           code is licensed
           <a
-            href="http://opensource.org/licenses/mit-license.php"
-          >MIT</a>. You
+            href="https://opensource.org/licenses/Apache-2.0"
+          >Apache 2.0</a>. You
           can download source code at
-          <a href="https://github.com/vldm">Github</a>.-->
+          <a href="https://github.com/vldm">Github</a>.
         </p>
         <p></p>
       </div>

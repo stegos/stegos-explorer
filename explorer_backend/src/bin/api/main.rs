@@ -1,15 +1,14 @@
+use explorer_backend::api_schema;
 /// This module serve api
-
 use std::io;
 use std::sync::Arc;
-use explorer_backend::api_schema;
 
 use juniper;
 
-use actix_web::{middleware, web, http::header, App, Error, HttpResponse, HttpServer};
+use actix_cors::Cors;
+use actix_web::{http::header, middleware, web, App, Error, HttpResponse, HttpServer};
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
-use actix_cors::Cors;
 
 use crate::api_schema::{create_schema, Schema};
 
@@ -47,20 +46,22 @@ async fn main() -> io::Result<()> {
 
     // Start http server
     HttpServer::new(move || {
-        App::new()        .wrap(
-            Cors::new() // <- Construct CORS middleware builder
-              .allowed_methods(vec!["GET", "POST"])
-              .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
-              .allowed_header(header::CONTENT_TYPE)
-                .supports_credentials()
-              .max_age(3600)
-              .finish())
+        App::new()
+            .wrap(
+                Cors::new() // <- Construct CORS middleware builder
+                    .allowed_methods(vec!["GET", "POST"])
+                    .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
+                    .allowed_header(header::CONTENT_TYPE)
+                    .supports_credentials()
+                    .max_age(3600)
+                    .finish(),
+            )
             .data(schema.clone())
             .wrap(middleware::Logger::default())
             .service(web::resource("/graphql").route(web::post().to(graphql)))
             .service(web::resource("/graphiql").route(web::get().to(graphiql)))
     })
     .bind("0.0.0.0:3000")?
-        .run()
-        .await
+    .run()
+    .await
 }

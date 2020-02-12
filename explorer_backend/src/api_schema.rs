@@ -4,17 +4,18 @@ use diesel::pg::PgConnection;
 use diesel::Connection;
 use diesel::QueryDsl;
 use diesel::{Insertable, Queryable};
+use hex::encode;
 use juniper::{EmptyMutation, RootNode};
 use log::*;
 use serde_derive::Deserialize;
 use serde_json::Value;
 use std::borrow::Cow;
-
 use std::env;
 
 const MAX_LIMIT: i32 = 100;
 
 pub type Hash = String;
+pub type Bytes = Vec<u8>;
 pub type Timestamp = String;
 pub type PublicKey = String;
 pub type VRF = Value;
@@ -46,7 +47,7 @@ pub struct AwardsInfo {
 #[derive(Debug, Queryable)]
 pub struct FullAwards {
     pub award: AwardsInfo,
-    pub spent_in_block: Option<String>,
+    pub spent_in_block: Option<Bytes>,
 }
 
 #[derive(Deserialize)]
@@ -84,7 +85,7 @@ pub struct TransactionInfo {
 #[derive(Debug, Deserialize)]
 pub struct Output {
     pub r#type: String,
-    pub output_hash: Hash,
+    pub output_hash: String,
     pub amount: Option<i64>,
     pub recipient: PublicKey,
 }
@@ -92,13 +93,13 @@ pub struct Output {
 #[derive(Debug, Queryable, Insertable)]
 #[table_name = "outputs"]
 pub struct OutputInfo {
-    pub output_hash: Hash,
+    pub output_hash: Bytes,
     pub output_type: String,
-    pub committed_block_hash: Option<String>,
+    pub committed_block_hash: Option<Bytes>,
     pub amount: Option<i64>,
     pub recipient: Option<PublicKey>,
-    pub spent_in_block: Option<String>,
-    pub spent_in_tx: Vec<Hash>,
+    pub spent_in_block: Option<Bytes>,
+    pub spent_in_tx: Vec<String>,
 }
 
 #[derive(Queryable, Insertable)]
@@ -298,14 +299,14 @@ impl MicroBlock {
     description = "A Output - information about transaction output agregated in block."
 )]
 impl OutputInfo {
-    pub fn output_hash(&self) -> &Hash {
-        &self.output_hash
+    pub fn output_hash(&self) -> Hash {
+        encode(&self.output_hash)
     }
     pub fn output_type(&self) -> &String {
         &self.output_type
     }
-    pub fn committed_block_hash(&self) -> &Option<String> {
-        &self.committed_block_hash
+    pub fn committed_block_hash(&self) -> Option<Hash> {
+        self.committed_block_hash.as_ref().map(|i| encode(i))
     }
     pub fn amount(&self) -> Option<f64> {
         self.amount.map(|v| v as f64)
@@ -313,8 +314,8 @@ impl OutputInfo {
     pub fn recipient(&self) -> &Option<PublicKey> {
         &self.recipient
     }
-    pub fn spent_in_block(&self) -> &Option<String> {
-        &self.spent_in_block
+    pub fn spent_in_block(&self) -> Option<Hash> {
+        self.spent_in_block.as_ref().map(|i| encode(i))
     }
 }
 
@@ -359,8 +360,8 @@ impl FullAwards {
     pub fn budget(&self) -> f64 {
         self.award.budget as f64
     }
-    pub fn spent_in_block(&self) -> &Option<String> {
-        &self.spent_in_block
+    pub fn spent_in_block(&self) -> Option<Hash> {
+        self.spent_in_block.as_ref().map(|i| encode(i))
     }
     pub fn timestamp(&self) -> &String {
         &self.award.block_timestamp
@@ -513,11 +514,13 @@ impl QueryRoot {
             }
 
             let block = blocks.swap_remove(0);
+            let decoded_hash =
+                &hex::decode(&block.block.block_hash).expect("canot parse block hash");
 
             let outputs = {
                 use crate::schema::outputs::dsl::*;
                 outputs
-                    .filter(committed_block_hash.eq(&block.block.block_hash))
+                    .filter(committed_block_hash.eq(decoded_hash))
                     .load::<OutputInfo>(&connection)
                     .expect("Error loading members")
             };
@@ -614,7 +617,7 @@ impl QueryRoot {
                     crate::schema::awards::all_columns,
                     crate::is_spent_awards(budget, validator),
                 ))
-                .load::<(AwardsInfo, Option<String>)>(&connection)
+                .load::<(AwardsInfo, Option<Bytes>)>(&connection)
                 .expect("Error loading awards")
                 .into_iter()
                 .map(|(award, spent_in_block)| FullAwards {

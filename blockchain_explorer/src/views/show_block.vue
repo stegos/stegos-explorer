@@ -214,7 +214,9 @@ export default Vue.extend({
           ""
         );
         let query = `{
-          macroBlock(network: "stt", epoch:${this.main.epoch},) {
+          macroBlock(network: "${this.network_name()}", epoch:${
+          this.main.epoch
+        },) {
             block {
               numTransactions,${fields}
             }
@@ -237,7 +239,9 @@ export default Vue.extend({
         );
         //TODO:: add transactions list
         let query = `{
-        microBlock(network: "stt", epoch:${this.main.epoch},offset:${this.main.offset}) {
+        microBlock(network: "${this.network_name()}", epoch:${
+          this.main.epoch
+        },offset:${this.main.offset}) {
             block {
               ${fields}
             }

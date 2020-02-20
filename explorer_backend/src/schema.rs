@@ -65,12 +65,12 @@ table! {
 
 table! {
     outputs (output_hash) {
-        output_hash -> Text,
+        output_hash -> Bytea,
         output_type -> Text,
-        committed_block_hash -> Nullable<Text>,
+        committed_block_hash -> Nullable<Bytea>,
         amount -> Nullable<Int8>,
         recipient -> Nullable<Text>,
-        spent_in_block -> Nullable<Text>,
+        spent_in_block -> Nullable<Bytea>,
         spent_in_tx -> Array<Text>,
     }
 }

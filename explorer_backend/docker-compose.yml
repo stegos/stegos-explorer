@@ -33,4 +33,5 @@ services:
     environment:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     volumes:
-      - /mnt/data/postgres:/var/lib/postgresql/data
+        # - /mnt/data/postgres:/var/lib/postgresql/data
+        - /home/moska/postgres:/var/lib/postgresql/data

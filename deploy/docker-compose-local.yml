@@ -1,0 +1,90 @@
+version: "3"
+services:
+  # Stegosd need an diet version, with stripped debug info.
+  stegosd_mainnet:
+    build:
+      context: .
+      dockerfile: stegos_diet.Dockerfile
+    image: quay.io/vldm/stegosd:diet
+    expose:
+      - "3145"
+    volumes:
+      - ${ROOT_DIR}/data/stegos/mainnet:/data
+    entrypoint: /bin/sh -c "echo -n $STEGOS_TOKEN > /data/api.token; stegosd -n mainnet -a 0.0.0.0:3145" # copy STEGOS_TOKEN just before run
+
+  stegosd_testnet:
+    build:
+      context: .
+      dockerfile: stegos_diet.Dockerfile
+    image: quay.io/vldm/stegosd:diet
+    expose:
+      - "3145"
+    volumes:
+      - ${ROOT_DIR}/data/stegos/testnet:/data
+    entrypoint: /bin/sh -c "echo -n $STEGOS_TOKEN > /data/api.token; stegosd -n testnet -a 0.0.0.0:3145"
+
+  fetcher_mainnet:
+    build:
+      context: ../explorer_backend
+    image: quay.io/vldm/fetcher
+    environment:
+      - RUST_LOG=debug
+      - RUST_BACKTRACE=1
+      - "STEGOS_TOKEN=${STEGOS_TOKEN}"
+      - "DATABASE_URL=${DATABASE_URL}"
+      - "STEGOS_ADDR=stegosd_mainnet:3145"
+    entrypoint: fetcher
+    links:
+      - stegosd_mainnet
+      - postgres
+
+  fetcher_testnet:
+    build:
+      context: ../explorer_backend
+    image: quay.io/vldm/fetcher
+    environment:
+      - RUST_LOG=debug
+      - RUST_BACKTRACE=1
+      - "STEGOS_TOKEN=${STEGOS_TOKEN}"
+      - "DATABASE_URL=${DATABASE_URL}"
+      - "STEGOS_ADDR=stegosd_testnet:3145"
+    entrypoint: fetcher
+    links:
+      - stegosd_testnet
+      - postgres
+
+  # Api and fetcher should be builded locally, and deployed remotely.
+  api:
+    build:
+      context: ../explorer_backend
+    image: quay.io/vldm/fetcher
+    environment:
+      - RUST_LOG=info
+      - "DATABASE_URL=${DATABASE_URL}"
+    ports:
+      - "80:3000"
+    entrypoint: api
+    links:
+      - postgres
+
+  # Use github pages for deploy frontend.
+  # frontend:
+  #   build:
+  #     context: ../blockchain_explorer
+  #     args: # frontend request IP during compile.
+  #       - SERVICE_IP=${SERVICE_IP}
+  #   image: quay.io/vldm/explorer
+  #   ports:
+  #     - "80:80"
+  #   links:
+  #     - api
+
+  # Postgres is available at public registry images, don't use local registry for it.
+  postgres:
+    image: "postgres:12.1-alpine"
+    # expose:
+    #   - "5432"
+    environment:
+      - POSTGRES_PASSWORD:${POSTGRES_PASSWORD}
+    volumes:
+      - ${ROOT_DIR}/data/stegos/postgres:/var/lib/postgresql/data

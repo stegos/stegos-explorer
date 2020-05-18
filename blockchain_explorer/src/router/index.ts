@@ -66,11 +66,13 @@ router.beforeEach((to, from, next) => {
   if (to.path.startsWith("/mainnet")) {
     store.commit("set_mainnet");
     next();
-  } else if (to.path.startsWith("/testnet")) {
-    store.commit("set_testnet");
-    next();
-  } else {
-    next("/testnet");
+  }
+  // else if (to.path.startsWith("/testnet")) {
+  //   store.commit("set_testnet");
+  //   next();
+  // }
+  else {
+    next("/mainnet");
   }
 });
 export default router;

@@ -21,9 +21,9 @@
         </b-navbar-dropdown>-->
         <div class="navbar-item">
           <b-field>
-            <b-radio-button v-model="network" native-value="stt" type="is-warning">
+            <!-- <b-radio-button v-model="network" native-value="stt" type="is-warning">
               <span>Testnet</span>
-            </b-radio-button>
+            </b-radio-button>-->
 
             <b-radio-button v-model="network" native-value="stg" type="is-success">
               <span>Mainnet</span>

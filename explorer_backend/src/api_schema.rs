@@ -1,5 +1,5 @@
 use crate::diesel::RunQueryDsl;
-use crate::schema::{awards, macro_blocks, micro_blocks, other_fields, outputs, transactions};
+use crate::schema::{awards, macro_blocks, micro_blocks, outputs, transactions};
 use diesel::pg::PgConnection;
 use diesel::Connection;
 use diesel::QueryDsl;
@@ -99,13 +99,6 @@ pub struct OutputInfo {
     pub recipient: Option<PublicKey>,
     pub spent_in_block: Option<String>,
     pub spent_in_tx: Vec<Hash>,
-}
-
-#[derive(Queryable, Insertable)]
-#[table_name = "other_fields"]
-pub struct OtherFields {
-    pub block_hash: Hash,
-    pub fields: Value,
 }
 
 #[derive(Deserialize, Default, Queryable, Insertable)]

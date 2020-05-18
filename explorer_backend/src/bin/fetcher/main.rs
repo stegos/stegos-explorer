@@ -104,19 +104,6 @@ impl Service {
         }
     }
 
-    // TODO: convert hash without clone, and info without serialize. 
-    fn add_other(db: &PgConnection, hash: &String, info: Map<String, Value>)-> Result<(), DBError> {
-        let fields = api_schema::OtherFields {
-            block_hash: hash.clone(),
-            fields: serde_json::to_value(&info).unwrap(),
-        };
-        let result = diesel::insert_into(schema::other_fields::table)
-            .values(&fields)
-            .execute(db)?;
-        assert_eq!(result, 1);
-        Ok(())
-    }
-
     fn process_awards(db: &PgConnection, block_timestamp: String, epoch: i64, award: api_schema::Awards) -> Result<(), DBError> {
         let payout = if let Some(payout) = award.payout {
             payout
@@ -249,7 +236,6 @@ impl Service {
                 let hash = block.response.block.block_hash;
                 Self::process_inputs(db, &hash, block.response.outputs, block.response.inputs)?;
                 Self::process_awards(db, block.response.block.block_timestamp, epoch, block.response.awards)?;
-                Self::add_other(db, &hash, block.other)?;
             }
             ResponseKind::ChainNotification(ChainNotification::MicroBlockPrepared(b)) => {
                 info!("Processing micro block: epoch={}, offset={}", b.header.epoch,b.header.offset);
@@ -262,7 +248,6 @@ impl Service {
                 assert_eq!(result, 1);
                 let hash = block.response.block.block_hash;
                 Self::process_txs(db, &hash, block.response.transactions)?;
-                Self::add_other(db, &hash, block.other)?;
             }
             ResponseKind::ChainNotification(ChainNotification::MicroBlockReverted(_b)) => {}, // silently revert block
             resp => info!("Not processed response {:?}", resp),

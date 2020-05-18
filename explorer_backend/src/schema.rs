@@ -57,13 +57,6 @@ table! {
 }
 
 table! {
-    other_fields (block_hash) {
-        block_hash -> Text,
-        fields -> Jsonb,
-    }
-}
-
-table! {
     outputs (output_hash) {
         output_hash -> Text,
         output_type -> Text,
@@ -90,7 +83,6 @@ allow_tables_to_appear_in_same_query!(
     awards,
     macro_blocks,
     micro_blocks,
-    other_fields,
     outputs,
     transactions,
 );

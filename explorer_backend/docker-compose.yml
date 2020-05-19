@@ -2,7 +2,7 @@ version: "3"
 services:
 
   fetcher_mainnet:
-    image: quay.io/vldm/fetcher
+    image: quay.io/stego/explorer
     environment:
       - RUST_LOG=debug
       - RUST_BACKTRACE=1
@@ -14,7 +14,7 @@ services:
 
   # Api and fetcher should be builded locally, and deployed remotely.
   api:
-    image: quay.io/vldm/fetcher
+    image: quay.io/stefos/explorer
     environment:
       - RUST_LOG=info
       - "DATABASE_URL=${DATABASE_URL}"

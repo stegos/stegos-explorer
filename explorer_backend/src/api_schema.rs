@@ -1,5 +1,5 @@
 use crate::diesel::RunQueryDsl;
-use crate::schema::{awards, macro_blocks, micro_blocks, other_fields, outputs, transactions};
+use crate::schema::{awards, macro_blocks, micro_blocks, outputs, transactions};
 use diesel::pg::PgConnection;
 use diesel::Connection;
 use diesel::QueryDsl;
@@ -11,6 +11,7 @@ use serde_derive::Deserialize;
 use serde_json::Value;
 use std::borrow::Cow;
 use std::env;
+use std::cmp;
 
 const MAX_LIMIT: i32 = 100;
 
@@ -102,13 +103,6 @@ pub struct OutputInfo {
     pub spent_in_tx: Vec<String>,
 }
 
-#[derive(Queryable, Insertable)]
-#[table_name = "other_fields"]
-pub struct OtherFields {
-    pub block_hash: Hash,
-    pub fields: Value,
-}
-
 #[derive(Deserialize, Default, Queryable, Insertable)]
 #[table_name = "macro_blocks"]
 pub struct MacroBlock {
@@ -136,6 +130,7 @@ pub struct MacroBlock {
     pub outputs_len: i32,
     pub outputs_range_hash: Hash,
     pub canaries_range_hash: Hash,
+    pub num_transactions: i64,
 }
 #[cfg(not(feature = "fetcher"))]
 pub fn network_prefix() -> String {
@@ -177,63 +172,63 @@ pub struct MicroBlock {
 }
 
 #[juniper::object(description = "A MacroBlock - it is an epoch representation")]
-impl MacroBlockInfo {
+impl MacroBlock {
     pub fn version(&self) -> f64 {
-        self.block.block_version as f64
+        self.block_version as f64
     }
     pub fn previous(&self) -> &Hash {
-        &self.block.previous
+        &self.previous
     }
     pub fn hash(&self) -> &Hash {
-        &self.block.block_hash
+        &self.block_hash
     }
     pub fn epoch(&self) -> f64 {
-        self.block.epoch as f64
+        self.epoch as f64
     }
     pub fn view_change(&self) -> f64 {
-        self.block.view_change as f64
+        self.view_change as f64
     }
     pub fn pkey(&self) -> &PublicKey {
-        &self.block.pkey
+        &self.pkey
     }
     pub fn random(&self) -> String {
-        serde_json::to_string(&self.block.random).unwrap()
+        serde_json::to_string(&self.random).unwrap()
     }
     pub fn difficulty(&self) -> f64 {
-        self.block.difficulty as f64
+        self.difficulty as f64
     }
     pub fn timestamp(&self) -> &Timestamp {
-        &self.block.block_timestamp
+        &self.block_timestamp
     }
     pub fn block_reward(&self) -> f64 {
-        self.block.block_reward as f64
+        self.block_reward as f64
     }
     pub fn gamma(&self) -> &Fr {
-        &self.block.gamma
+        &self.gamma
     }
     pub fn activity_map(&self) -> &BitVec {
-        &self.block.activity_map
+        &self.activity_map
     }
     pub fn validators_len(&self) -> f64 {
-        self.block.validators_len as f64
+        self.validators_len as f64
     }
     pub fn validators_range_hash(&self) -> &Hash {
-        &self.block.validators_range_hash
+        &self.validators_range_hash
     }
     pub fn inputs_len(&self) -> f64 {
-        self.block.inputs_len as f64
+        self.inputs_len as f64
     }
     pub fn inputs_range_hash(&self) -> &Hash {
-        &self.block.inputs_range_hash
+        &self.inputs_range_hash
     }
     pub fn outputs_len(&self) -> f64 {
-        self.block.outputs_len as f64
+        self.outputs_len as f64
     }
     pub fn outputs_range_hash(&self) -> &Hash {
-        &self.block.outputs_range_hash
+        &self.outputs_range_hash
     }
     pub fn canaries_range_hash(&self) -> &Hash {
-        &self.block.canaries_range_hash
+        &self.canaries_range_hash
     }
     pub fn num_transactions(&self) -> f64 {
         self.num_transactions as f64
@@ -380,7 +375,7 @@ impl FullMicroBlock {
 
 #[juniper::object(description = "A MacroBlock with information about outputs.")]
 impl FullMacroBlock {
-    pub fn block(&self) -> &MacroBlockInfo {
+    pub fn block(&self) -> &MacroBlock {
         &self.block
     }
     pub fn outputs(&self) -> &Vec<OutputInfo> {
@@ -393,13 +388,8 @@ pub struct FullMicroBlock {
     transactions: Vec<TransactionInfo>,
 }
 
-pub struct MacroBlockInfo {
-    block: MacroBlock,
-    num_transactions: i64,
-}
-
 pub struct FullMacroBlock {
-    block: MacroBlockInfo,
+    block: MacroBlock,
     outputs: Vec<OutputInfo>,
 }
 
@@ -495,18 +485,8 @@ impl QueryRoot {
                 use crate::schema::macro_blocks::dsl::*;
                 macro_blocks
                     .filter(network.eq(&network_name).and(epoch.eq(block_epoch)))
-                    .select((
-                        crate::schema::macro_blocks::all_columns,
-                        crate::num_transactions(epoch, network),
-                    ))
-                    .load::<(MacroBlock, i64)>(&connection)
+                    .load::<MacroBlock>(&connection)
                     .expect("Error loading members")
-                    .into_iter()
-                    .map(|(block, num_transactions)| MacroBlockInfo {
-                        block,
-                        num_transactions,
-                    })
-                    .collect()
             };
 
             if blocks.len() != 1 {
@@ -515,7 +495,7 @@ impl QueryRoot {
 
             let block = blocks.swap_remove(0);
             let decoded_hash =
-                &hex::decode(&block.block.block_hash).expect("canot parse block hash");
+                &hex::decode(&block.block_hash).expect("canot parse block hash");
 
             let outputs = {
                 use crate::schema::outputs::dsl::*;
@@ -550,32 +530,25 @@ impl QueryRoot {
 
     // TODO:
     // - Add transaction count.
-    fn blocks(network: String, start_epoch: i32, mut limit: i32) -> Vec<MacroBlockInfo> {
+    fn blocks(network: String, start_epoch: i32, mut limit: i32) -> Vec<MacroBlock> {
         let network_name = network;
         {
             use crate::diesel::BoolExpressionMethods;
             use crate::diesel::ExpressionMethods;
             use crate::schema::macro_blocks::dsl::*;
-            if limit > MAX_LIMIT {
-                limit = MAX_LIMIT;
-            }
+            limit = cmp::max(limit, MAX_LIMIT);
+            let end_epoch = cmp::max(start_epoch - limit, 0);
             let connection = establish_connection();
+
             macro_blocks
-                .filter(epoch.le(start_epoch as i64).and(network.eq(&network_name)))
+                .filter(
+                    epoch.le(start_epoch as i64)
+                    .and(epoch.gt(end_epoch as i64))
+                    .and(network.eq(&network_name))
+                )
                 .order_by(epoch.desc())
-                .limit(limit as i64)
-                .select((
-                    crate::schema::macro_blocks::all_columns,
-                    crate::num_transactions(epoch, network),
-                ))
-                .load::<(MacroBlock, i64)>(&connection)
+                .load::<MacroBlock>(&connection)
                 .expect("Error loading blocks list")
-                .into_iter()
-                .map(|(block, num_transactions)| MacroBlockInfo {
-                    block,
-                    num_transactions,
-                })
-                .collect()
         }
     }
 

@@ -30,6 +30,7 @@ table! {
         outputs_len -> Int4,
         outputs_range_hash -> Text,
         canaries_range_hash -> Text,
+        num_transactions -> Int8,
     }
 }
 
@@ -53,13 +54,6 @@ table! {
         outputs_len -> Int4,
         outputs_range_hash -> Text,
         canaries_range_hash -> Text,
-    }
-}
-
-table! {
-    other_fields (block_hash) {
-        block_hash -> Text,
-        fields -> Jsonb,
     }
 }
 
@@ -90,7 +84,6 @@ allow_tables_to_appear_in_same_query!(
     awards,
     macro_blocks,
     micro_blocks,
-    other_fields,
     outputs,
     transactions,
 );

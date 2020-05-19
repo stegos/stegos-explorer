@@ -1,0 +1,37 @@
+version: "3"
+services:
+
+  fetcher_mainnet:
+    image: quay.io/stego/explorer
+    environment:
+      - RUST_LOG=debug
+      - RUST_BACKTRACE=1
+      - "STEGOS_TOKEN=${STEGOS_TOKEN}"
+      - "DATABASE_URL=${DATABASE_URL}"
+      - "STEGOS_ADDR=localhost:3145"
+    entrypoint: fetcher
+    network_mode: "host"
+
+  # Api and fetcher should be builded locally, and deployed remotely.
+  api:
+    image: quay.io/stefos/explorer
+    environment:
+      - RUST_LOG=info
+      - "DATABASE_URL=${DATABASE_URL}"
+    ports:
+      - "3000:3000"
+    entrypoint: api
+    network_mode: "host"
+
+  # Postgres is available at public registry images, don't use local registry for it.
+  postgres:
+    image: "postgres:12.1-alpine"
+    #expose:
+    #   - "5432"    
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+        # - /mnt/data/postgres:/var/lib/postgresql/data
+        - /home/moska/postgres:/var/lib/postgresql/data

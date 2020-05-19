@@ -2,8 +2,16 @@
 FROM quay.io/stegos/rust:nightly-2019-11-25 AS source
 # FROM rustlang/rust:nightly-stretch-slim AS source
 
+# FROM ubuntu:bionic as source
+# LABEL maintainer="Stegos AG <info@stegos.com>"
+# #COPY . /usr/src/build
+# #WORKDIR /usr/src/build
+# #RUN WITH_ANDROID=1 ./build.sh builddep && apt-get clean all && rm -rf /root/.cargo/registry && rm -rf /usr/src/build
+# #ENV PATH="$PATH:/root/.cargo/bin:/root/Android/Sdk/ndk-bundle/toolchains/llvm/prebuilt/linux-x86_64/bin"
+
+RUN apt-get update
 RUN apt-get -y install libpq-dev
-LABEL maintainer="Vladimir Motylenko <me@vldm.cc>"
+LABEL maintainer="Stegos AG <info@stegos.com>"
 
 #### START CARGO HACK THAT PREVENT REBUILD
 WORKDIR /usr/src/
@@ -37,7 +45,8 @@ RUN /usr/bin/strip /usr/local/bin/api
 RUN /usr/bin/strip /usr/local/bin/fetcher
 
 FROM quay.io/stegos/rust:nightly-2019-11-25
-LABEL maintainer="Vladimir Motylenko <me@vldm.cc>"
+LABEL maintainer="Stegos AG <info@stegos.com>"
+
 # copy stegosd dependencies
 COPY --from=source /usr/local/bin/api /usr/local/bin/api
 COPY --from=source /usr/local/bin/fetcher /usr/local/bin/fetcher

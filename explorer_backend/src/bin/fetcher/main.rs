@@ -99,23 +99,6 @@ impl Service {
         Self { client, db }
     }
 
-    // TODO: convert hash without clone, and info without serialize.
-    fn add_other(
-        db: &PgConnection,
-        hash: &String,
-        info: Map<String, Value>,
-    ) -> Result<(), DBError> {
-        let fields = api_schema::OtherFields {
-            block_hash: hash.clone(),
-            fields: serde_json::to_value(&info).unwrap(),
-        };
-        let result = diesel::insert_into(schema::other_fields::table)
-            .values(&fields)
-            .execute(db)?;
-        assert_eq!(result, 1);
-        Ok(())
-    }
-
     fn process_awards(
         db: &PgConnection,
         block_timestamp: String,
@@ -315,7 +298,6 @@ impl Service {
                         epoch,
                         block.response.awards,
                     )?;
-                    Self::add_other(db, &hash, block.other)?;
                 }
                 ResponseKind::ChainNotification(ChainNotification::MicroBlockPrepared(b)) => {
                     info!(
@@ -332,7 +314,6 @@ impl Service {
                     assert_eq!(result, 1);
                     let hash = block.response.block.block_hash;
                     Self::process_txs(db, &hash, block.response.transactions)?;
-                    Self::add_other(db, &hash, block.other)?;
                 }
                 ResponseKind::ChainNotification(ChainNotification::MicroBlockReverted(_b)) => {} // silently revert block
                 resp => info!("Not processed response {:?}", resp),

@@ -106,7 +106,7 @@ export default class Awards extends Vue {
         }
       }`;
 
-      request(this.api_addr, query).then(awards => {
+      request(this.api_addr, query).then((awards: any) => {
         awards.awards.forEach((element: any) => {
           element.budget /= 1000000;
           

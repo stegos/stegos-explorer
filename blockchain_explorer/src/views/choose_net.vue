@@ -54,6 +54,7 @@
         <p>
           <strong>
             <a href="https://stegos.com">Stegos</a> Blockchain Explorer
+          </strong>
         </p>
         <p></p>
       </div>

@@ -171,7 +171,7 @@ export default class BlockList extends Vue {
         }
       }`;
 
-    request(this.api_addr, query).then(block_list => {
+    request(this.api_addr, query).then((block_list:any) => {
       block_list.blocks.forEach((element: any) => {
         let data = format_hash(element.hash);
         element.hashShrinked = data.text;
@@ -210,7 +210,7 @@ export default class BlockList extends Vue {
         }
       }`;
 
-    request(this.api_addr, query).then(block_list => {
+    request(this.api_addr, query).then((block_list:any) => {
       row.micro_blocks = block_list.microBlocks;
       row.micro_blocks.forEach((element: any) => {
         let data = format_hash(element.hash);

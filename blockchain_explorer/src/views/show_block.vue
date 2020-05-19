@@ -229,7 +229,7 @@ export default Vue.extend({
             }
           }
         }`;
-        request(this.api_addr(), query).then(data =>
+        request(this.api_addr(), query).then((data:any) =>
           this.on_request("macro", data.macroBlock)
         );
       } else {
@@ -248,7 +248,7 @@ export default Vue.extend({
           }
       }`;
 
-        request(this.api_addr(), query).then(data =>
+        request(this.api_addr(), query).then((data:any) =>
           this.on_request("micro_block", data.microBlock)
         );
       }

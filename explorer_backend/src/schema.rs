@@ -30,6 +30,7 @@ table! {
         outputs_len -> Int4,
         outputs_range_hash -> Text,
         canaries_range_hash -> Text,
+        num_transactions -> Int8,
     }
 }
 

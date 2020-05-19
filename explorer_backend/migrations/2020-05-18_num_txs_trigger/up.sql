@@ -1,13 +1,13 @@
-ALTER TABLE macro_blocks ADD COLUMN num_txs INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE macro_blocks ADD COLUMN num_transactions INTEGER NOT NULL DEFAULT 0;
 
 -- Populate the new column once (takes forever!)
 -- UPDATE macro_blocks
--- SET num_txs = num_transactions(epoch, network);
+-- SET num_transactions = num_transactions(epoch, network);
 
 -- And create a trigger to populate it automatically
 CREATE FUNCTION update_num_txs() RETURNS trigger AS $update_num_txs$
 BEGIN
-    NEW.num_txs = num_transactions(NEW.epoch, NEW.network);
+    NEW.num_transactions = num_transactions(NEW.epoch, NEW.network);
     RETURN NEW;
 END;
 $update_num_txs$ LANGUAGE plpgsql;

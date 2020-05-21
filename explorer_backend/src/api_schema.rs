@@ -130,7 +130,8 @@ pub struct MacroBlock {
     pub outputs_len: i32,
     pub outputs_range_hash: Hash,
     pub canaries_range_hash: Hash,
-    pub num_transactions: i64,
+    #[serde(default)]
+    pub num_transactions: i32,
 }
 #[cfg(not(feature = "fetcher"))]
 pub fn network_prefix() -> String {

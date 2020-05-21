@@ -4,11 +4,9 @@ use explorer_backend::api_schema;
 use explorer_backend::api_schema::MacroBlock;
 use explorer_backend::schema;
 use log::{debug, info, trace, warn};
-use serde_json::Value;
 
 use diesel::prelude::*;
 use serde_derive::Deserialize;
-use std::collections::BTreeMap as Map;
 use std::env;
 use stegos_api::{
     ApiToken, ChainNotification, Request, RequestKind, Response, ResponseKind, WebSocketClient,
@@ -51,8 +49,6 @@ pub fn establish_connection() -> PgConnection {
 struct ResponseWithRest<T> {
     #[serde(flatten)]
     response: T,
-    #[serde(flatten)]
-    other: Map<String, Value>,
 }
 
 #[derive(Deserialize)]

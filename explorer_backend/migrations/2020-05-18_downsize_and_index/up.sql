@@ -1,6 +1,8 @@
+DROP INDEX IF EXISTS micro_blocks_by_epoch;
 CREATE INDEX micro_blocks_by_epoch
   ON micro_blocks(epoch);
 
+DROP INDEX IF EXISTS macro_blocks_by_epoch;
 CREATE INDEX macro_blocks_by_epoch
   ON macro_blocks(epoch, network);
 

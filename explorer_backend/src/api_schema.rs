@@ -302,7 +302,7 @@ impl OutputInfo {
         &self.output_type
     }
     pub fn committed_block_hash(&self) -> Option<Hash> {
-        self.committed_block_hash.as_ref().map(|i| encode(i))
+        self.committed_block_hash.as_ref().map(encode)
     }
     pub fn amount(&self) -> Option<f64> {
         self.amount.map(|v| v as f64)
@@ -311,7 +311,7 @@ impl OutputInfo {
         &self.recipient
     }
     pub fn spent_in_block(&self) -> Option<Hash> {
-        self.spent_in_block.as_ref().map(|i| encode(i))
+        self.spent_in_block.as_ref().map(encode)
     }
 }
 
@@ -357,7 +357,7 @@ impl FullAwards {
         self.award.budget as f64
     }
     pub fn spent_in_block(&self) -> Option<Hash> {
-        self.spent_in_block.as_ref().map(|i| encode(i))
+        self.spent_in_block.as_ref().map(encode)
     }
     pub fn timestamp(&self) -> &String {
         &self.award.block_timestamp
@@ -616,5 +616,6 @@ pub fn create_schema() -> Schema {
 
 pub fn establish_connection() -> PgConnection {
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    PgConnection::establish(&database_url).expect(&format!("Error connecting to {}", database_url))
+    PgConnection::establish(&database_url)
+        .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 }

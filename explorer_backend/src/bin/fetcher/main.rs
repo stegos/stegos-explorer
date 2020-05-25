@@ -26,18 +26,19 @@ use futures::task::{noop_waker, Context};
 use futures_01::future::{lazy, ok};
 use std::{thread::sleep, time::Duration};
 
-const NUM_RETRY: usize = 10;
+const NUM_RETRIES: usize = 10;
+
 pub fn establish_connection() -> PgConnection {
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let mut retry = 0;
     loop {
         match PgConnection::establish(&database_url) {
             Ok(pg) => return pg,
-            Err(e) if retry == NUM_RETRY => panic!("Error connecting to {}, e={}", database_url, e),
+            Err(e) if retry == NUM_RETRIES => panic!("Error connecting to {}, e={}", database_url, e),
             _ => {}
         }
         warn!(
-            "Can't connect to postgres, will try to connect in 10 seconds, num of retry = {}",
+            "Can't connect to postgres, will try again in 10 seconds, attempt #{}",
             retry
         );
         sleep(Duration::from_secs(10));
@@ -71,11 +72,11 @@ fn main() {
     env_logger::try_init().unwrap();
     let uri = format!(
         "ws://{}",
-        env::var("STEGOS_ADDR").expect("STEGOS_ADDR to be set")
+        env::var("STEGOS_ADDR").expect("STEGOS_ADDR not set")
     );
     let db = establish_connection();
     let api_token =
-        ApiToken::from_base64(&env::var("STEGOS_TOKEN").expect("STEGOS_TOKEN to be set")).unwrap();
+        ApiToken::from_base64(&env::var("STEGOS_TOKEN").expect("STEGOS_TOKEN not set")).unwrap();
 
     info!("Trying to create websocket connection with uri={}", uri);
     let client = WebSocketClient::new(uri, api_token);
@@ -122,7 +123,8 @@ impl Service {
 
         return Ok(());
     }
-    // This method is executed only if processing of macroblock succed.
+
+    // This method is executed only if processing of macroblock succeeded
     fn process_txs(
         db: &PgConnection,
         block_hash: &api_schema::Hash,
@@ -335,7 +337,6 @@ impl Service {
 
     fn resolve_epoch(db: &PgConnection, prefix: &str) -> Result<(u64, u32), failure::Error> {
         use explorer_backend::num_micro_blocks;
-
         use crate::schema::macro_blocks::dsl::*;
         let blocks = macro_blocks
             .filter(network.eq(prefix))
@@ -388,7 +389,8 @@ impl Service {
         let mut client = self.client.compat();
         let waker = noop_waker();
         let mut context = Context::from_waker(&waker);
-        // Manually poll untill connect. We didin't wait for items, just need to made some progress on item.
+        // Manually poll untill connected. We didin't wait for items, 
+        // just need to made some progress on item.
         // TODO: use waker instead of while.
         while !client.get_ref().is_connected() {
             let pinned_client = Pin::new(&mut client);

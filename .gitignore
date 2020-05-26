@@ -6,4 +6,5 @@
 /data
 
 # local eniroment
-.env.local
+.env.*
+.vscode

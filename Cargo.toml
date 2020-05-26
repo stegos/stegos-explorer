@@ -1,6 +1,10 @@
 [workspace]
-members = [ "explorer_backend" ]
+members = [ "backend" ]
 
 [profile.release]
 incremental = true
 debug = 2
+
+[patch.crates-io]
+libp2p-gossipsub = { version='*', git = 'https://github.com/stegos/stegos', branch='dev'}
+

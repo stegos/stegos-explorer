@@ -3,8 +3,6 @@ use explorer_backend::api_schema;
 use std::io;
 use std::sync::Arc;
 
-use juniper;
-
 use actix_cors::Cors;
 use actix_web::{http::header, middleware, web, App, Error, HttpResponse, HttpServer};
 use juniper::http::graphiql::graphiql_source;

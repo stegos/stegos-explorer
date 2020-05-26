@@ -28,14 +28,14 @@ COPY ./Cargo.lock ./Cargo.lock
 COPY ./Cargo.toml ./Cargo.toml
 
 # this build step will cache your dependencies
-RUN cargo build --release  --features="fetcher" 
+RUN cargo build --features="fetcher" 
 RUN rm src/ -r
 
 #### END CARGO HACK
-# build for release
+# build for debug
 
-RUN rm ./target/release/deps/explorer_backend*
-RUN rm ./target/release/deps/libexplorer_backend*
+RUN rm ./target/debug/deps/explorer_backend*
+RUN rm ./target/debug/deps/libexplorer_backend*
 
 COPY . /usr/src/explorer_backend
 

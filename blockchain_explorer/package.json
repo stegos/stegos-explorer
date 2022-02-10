@@ -14,7 +14,7 @@
     "core-js": "^3.3.2",
     "graphql-request": "^1.8.2",
     "humanize-duration": "^3.21.0",
-    "node-sass": "^4.13.0",
+    "node-sass": "^7.0.0",
     "sass-loader": "^8.0.0",
     "vue": "^2.6.10",
     "vue-class-component": "^7.0.2",
